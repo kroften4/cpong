@@ -16,7 +16,7 @@ void ping(client_t client) {
             printf("ping: Connection %d closed\n", client.id);
             return;
         };
-        printf("Sent ping to %d\n", client.id);
+        // printf("Sent ping to %d\n", client.id);
     }
 }
 
@@ -28,6 +28,7 @@ int main(int argc, char **argv) {
     server_t server = {0};
     server_set_fd(&server, port);
     server.clients = ts_queue_new();
+    printf("Listening on %s\n", port);
     server_worker(&server, ping);
 }
 

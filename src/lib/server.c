@@ -1,5 +1,4 @@
 #include <asm-generic/errno-base.h>
-#include <errno.h>
 #include <netdb.h>
 #include <string.h>
 #include <stdio.h>
@@ -72,13 +71,14 @@ void server_handle_disconnection(server_t *server, client_t client) {
         client_t *client_p = p->data;
         if (client_p->id == client.id) {
             client_node = p;
+            break;
         }
-        printf("disconnection: Found id %d, need %d\n", client_p->id, client.id);
     }
     if (client_node == NULL) {
-        printf("disconnection: Cannot find client id %d\n", client.id);
+        fprintf(stderr, "disconnection: Cannot find client id %d\n", client.id);
     }
     else {
+        close(client.fd);
         free(client_node->data);
         __ts_queue_remove_nolock(server->clients, client_node->prev, client_node->next);
     }
@@ -87,9 +87,7 @@ void server_handle_disconnection(server_t *server, client_t client) {
 
 int server_send(server_t *server, client_t client, struct binarr barr) {
     if (send(client.fd, barr.buf, barr.size, MSG_NOSIGNAL) == -1) {
-        if (errno == EPIPE) {
-            server_handle_disconnection(server, client);
-        }
+        server_handle_disconnection(server, client);
         return -1;
     }
     return 0;
@@ -102,6 +100,16 @@ void *handle_connection(void *conn_data) {
     return NULL;
 }
 
+void __print_queue(struct ts_queue *q) {
+    printf("[ ");
+    for (struct ts_queue_node *node = q->head; node != NULL;
+         node = node->next) {
+        client_t *client = node->data;
+        printf("%d ", client->id);
+    }
+    printf("]\n");
+}
+
 void *server_worker(server_t *server, void on_connection(client_t)) {
     for (;;) {
         struct sockaddr_storage client_addr;
@@ -111,13 +119,16 @@ void *server_worker(server_t *server, void on_connection(client_t)) {
             perror("server: accept");
             continue;
         }
-        printf("server: New connection: %d\n", connfd);
+        printf("server: New connection: %d", connfd);
 
         client_t *client = malloc(sizeof(client_t));
         client->fd = connfd;
         client->server = server;
         client->id = connfd;
         ts_queue_enqueue(server->clients, client);
+        pthread_mutex_lock(&server->clients->mutex);
+        __print_queue(server->clients);
+        pthread_mutex_unlock(&server->clients->mutex);
 
         struct conn_data *conn_data = malloc(sizeof(struct conn_data));
         if (conn_data == NULL) {
