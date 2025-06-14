@@ -1,13 +1,17 @@
+#include <asm-generic/errno-base.h>
+#include <errno.h>
 #include <netdb.h>
 #include <string.h>
 #include <stdio.h>
+#include <sys/socket.h>
 #include <unistd.h>
 #include <pthread.h>
 #include <stdlib.h>
 
+#include "ts_queue.h"
 #include "server.h"
 
-int start_server(char *port) {
+server_t *server_set_fd(server_t *server, char *port) {
     struct addrinfo hints;
     memset(&hints, 0, sizeof(hints));
     hints.ai_family = AF_INET;
@@ -19,7 +23,7 @@ int start_server(char *port) {
     if (ai_status != 0) {
         freeaddrinfo(server_ai);
         fprintf(stderr, "server start: addrinfo: %s\n", gai_strerror(ai_status));
-        return -1;
+        return NULL;
     }
 
     int sockfd;
@@ -41,7 +45,7 @@ int start_server(char *port) {
 
     if (server_ai == NULL) {
         fprintf(stderr, "server start: Failed to bind\n");
-        return -1;
+        return NULL;
     }
 
     freeaddrinfo(server_ai);
@@ -49,51 +53,81 @@ int start_server(char *port) {
     if (listen(sockfd, SERVER_BACKLOG) == -1) {
         perror("server start: listen");
         close(sockfd);
-        return -1;
+        return NULL;
     }
 
-    return sockfd;
+    server->fd = sockfd;
+    return server;
 }
 
 struct conn_data {
-    int connfd;
-    void (*on_connection_fn)(int);
+    client_t cl_data;
+    void (*on_connection_fn)(client_t cl_data);
 };
+
+void server_handle_disconnection(server_t *server, client_t client) {
+    pthread_mutex_lock(&server->clients->mutex);
+    struct ts_queue_node *client_node = NULL;
+    for (struct ts_queue_node *p = server->clients->head; p != NULL; p = p->next) {
+        client_t *client_p = p->data;
+        if (client_p->id == client.id) {
+            client_node = p;
+        }
+        printf("disconnection: Found id %d, need %d\n", client_p->id, client.id);
+    }
+    if (client_node == NULL) {
+        printf("disconnection: Cannot find client id %d\n", client.id);
+    }
+    else {
+        free(client_node->data);
+        __ts_queue_remove_nolock(server->clients, client_node->prev, client_node->next);
+    }
+    pthread_mutex_unlock(&server->clients->mutex);
+}
+
+int server_send(server_t *server, client_t client, struct binarr barr) {
+    if (send(client.fd, barr.buf, barr.size, MSG_NOSIGNAL) == -1) {
+        if (errno == EPIPE) {
+            server_handle_disconnection(server, client);
+        }
+        return -1;
+    }
+    return 0;
+}
 
 void *handle_connection(void *conn_data) {
     struct conn_data *c_data = (struct conn_data *) conn_data;
-    c_data->on_connection_fn(c_data->connfd);
+    c_data->on_connection_fn(c_data->cl_data);
     free(c_data);
     return NULL;
 }
 
-int server(char *port, void on_connection(int connfd)) {
-    int servfd = start_server(port);
-    if (servfd == -1) {
-        return -1;
-    }
-    printf("server: Listening on %s\n", port);
-
+void *server_worker(server_t *server, void on_connection(client_t)) {
     for (;;) {
         struct sockaddr_storage client_addr;
         socklen_t client_addrlen = sizeof(client_addr);
-        int connfd = accept(servfd, (struct sockaddr *)&client_addr, &client_addrlen);
+        int connfd = accept(server->fd, (struct sockaddr *)&client_addr, &client_addrlen);
         if (connfd == -1) {
             perror("server: accept");
             continue;
         }
-
         printf("server: New connection: %d\n", connfd);
+
+        client_t *client = malloc(sizeof(client_t));
+        client->fd = connfd;
+        client->server = server;
+        client->id = connfd;
+        ts_queue_enqueue(server->clients, client);
 
         struct conn_data *conn_data = malloc(sizeof(struct conn_data));
         if (conn_data == NULL) {
             perror("server: malloc");
             continue;
         }
-        conn_data->connfd = connfd;
+        conn_data->cl_data = *client;
         conn_data->on_connection_fn = on_connection;
         pthread_t conn_thread;
-        pthread_create(&conn_thread, NULL, (void *(*)(void *))&handle_connection, conn_data);
+        pthread_create(&conn_thread, NULL, handle_connection, conn_data);
         pthread_detach(conn_thread);
     }
 }

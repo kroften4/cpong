@@ -12,7 +12,7 @@ struct binarr {
     size_t size;
 };
 
-struct binarr *binarr_new(struct binarr *arr, size_t capacity) {
+static inline struct binarr *binarr_new(struct binarr *arr, size_t capacity) {
     int8_t *buf = malloc(capacity);
     if (buf == NULL) {
         perror("malloc");
@@ -22,31 +22,31 @@ struct binarr *binarr_new(struct binarr *arr, size_t capacity) {
     return arr;
 }
 
-void binarr_destroy(struct binarr arr) {
+static inline void binarr_destroy(struct binarr arr) {
     free(arr.buf);
 }
 
-void binarr_append_i8(struct binarr *arr, int8_t data) {
+static inline void binarr_append_i8(struct binarr *arr, int8_t data) {
     memcpy(arr->buf + arr->size, &data, sizeof(data));
     arr->size += sizeof(data);
 }
 
-void binarr_append_i16(struct binarr *arr, int16_t data) {
+static inline void binarr_append_i16(struct binarr *arr, int16_t data) {
     memcpy(arr->buf + arr->size, &data, sizeof(data));
     arr->size += sizeof(data);
 }
 
-void binarr_append_i16_n(struct binarr *arr, int16_t data) {
+static inline void binarr_append_i16_n(struct binarr *arr, int16_t data) {
     data = htons(data);
     binarr_append_i16(arr, data);
 }
 
-void binarr_append_i32(struct binarr *arr, int32_t data) {
+static inline void binarr_append_i32(struct binarr *arr, int32_t data) {
     memcpy(arr->buf + arr->size, &data, sizeof(data));
     arr->size += sizeof(data);
 }
 
-void binarr_append_i32_n(struct binarr *arr, int32_t data) {
+static inline void binarr_append_i32_n(struct binarr *arr, int32_t data) {
     data = htons(data);
     binarr_append_i32(arr, data);
 }

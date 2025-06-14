@@ -7,9 +7,10 @@
 #include <stdio.h>
 #include "ts_queue.h"
 #include "bin_array.h"
+#include "server.h"
 
 enum cpong_packet {
-    PACKET_PONG
+    PACKET_PING
 };
 
 struct packet {
@@ -22,39 +23,27 @@ struct packet {
     } data;
 };
 
-typedef struct {
-    int fd;
-    struct ts_queue *clients;
-} server_t;
-
-typedef struct {
-    int fd;
-    int id;
-} client_t;
-
-
 struct binarr *packet_serialize(struct binarr *barr, struct packet packet) {
     binarr_append_i8(barr, packet.type);
     binarr_append_i32_n(barr, packet.size);
     switch (packet.type) {
-    case PACKET_PONG:
-    {
+    case PACKET_PING:
         binarr_append_i8(barr, packet.data.ping.dummy);
-    }
+        break;
     default:
         return NULL;
     }
     return barr;
 }
 
-int send_packet_serialized(int fd, struct binarr barr) {
-    if (send(fd, barr.buf, barr.size, NULL) == -1) {
+int server_send_packet_serialized(server_t *server, client_t client, struct binarr barr) {
+    if (server_send(server, client, barr)) {
         return -1;
     }
     return 0;
 }
 
-int server_send(client_t target, struct packet packet) {
+int server_send_packet(server_t *server, client_t target, struct packet packet) {
     struct binarr barr = {0};
     uint64_t capacity = sizeof(packet.type) + sizeof(packet.data) + packet.size;
     binarr_new(&barr, capacity);
@@ -63,13 +52,16 @@ int server_send(client_t target, struct packet packet) {
         binarr_destroy(barr);
         return -1;
     }
-    send_packet_serialized(target.fd, barr);
+    if (server_send_packet_serialized(server, target, barr) == -1) {
+        binarr_destroy(barr);
+        return -1;
+    }
     binarr_destroy(barr);
 
     return 0;
 }
 
-int server_broadcast(server_t server, struct packet packet) {
+int server_broadcast(server_t *server, struct packet packet) {
     struct binarr barr = {0};
     uint64_t capacity = sizeof(packet.type) + sizeof(packet.data) + packet.size;
     binarr_new(&barr, capacity);
@@ -78,9 +70,12 @@ int server_broadcast(server_t server, struct packet packet) {
         binarr_destroy(barr);
         return -1;
     }
-    for (struct ts_queue_node *p = server.clients->head; p != NULL; p = p->next) {
+    for (struct ts_queue_node *p = server->clients->head; p != NULL; p = p->next) {
         client_t *client = p->data;
-        send_packet_serialized(client->fd, barr);
+        if (server_send_packet_serialized(server, *client, barr) == -1) {
+            // TODO: do i need to signal that some clients disconnected?
+            continue;
+        }
     }
     binarr_destroy(barr);
     return 0;
@@ -96,7 +91,8 @@ int client_send(server_t server, struct packet packet) {
         binarr_destroy(barr);
         return -1;
     }
-    send_packet_serialized(server.fd, barr);
+    // TODO: write proper shit for client
+    send(server.fd, barr.buf, barr.size, 0);
     binarr_destroy(barr);
 
     return 0;
