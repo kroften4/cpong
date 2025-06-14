@@ -1,3 +1,6 @@
+#ifndef __MATCHMAKING_SERVER_H__
+#define __MATCHMAKING_SERVER_H__
+
 #include "ts_queue.h"
 #include "server.h"
 
@@ -29,4 +32,6 @@ void *__handle_match(void *room_data_p);
 int matchmaking_server(char *port, on_match_fn_t on_match);
 
 void __enqueue_new_player(int connfd);
+
+#endif
 

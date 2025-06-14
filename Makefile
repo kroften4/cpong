@@ -13,7 +13,7 @@ LIB_OBJ = $(patsubst src/lib/%.c, build/lib/%.o, $(LIB_SRC))
 
 .PHONY: all clean
 
-all: bin/server bin/client bin/test
+all: bin/server
 
 build/lib/%.o: src/lib/%.c
 	@mkdir -p $(@D)
@@ -21,9 +21,6 @@ build/lib/%.o: src/lib/%.c
 
 bin/server: $(LIB_OBJ)
 	$(CC) $(CFLAGS) $^ src/server.c -o $@
-
-bin/client: $(LIB_OBJ)
-	$(CC) $(CFLAGS) $^ src/client.c -o $@
 
 clean:
 	rm -r bin/* build/*

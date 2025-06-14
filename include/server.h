@@ -1,3 +1,6 @@
+#ifndef __SERVER_H__
+#define __SERVER_H__
+
 /*
  * Backlog for `listen` call
  */
@@ -19,3 +22,4 @@ int start_server(char *port);
  */
 int server(char *port, void on_connection(int connfd));
 
+#endif
