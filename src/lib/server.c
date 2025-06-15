@@ -129,16 +129,18 @@ void *server_worker(server_t *server, void on_connection(client_t)) {
         __print_queue(server->clients);
         pthread_mutex_unlock(&server->clients->mutex);
 
-        struct conn_data *conn_data = malloc(sizeof(struct conn_data));
-        if (conn_data == NULL) {
-            perror("server: malloc");
-            continue;
+        if (on_connection != NULL) {
+            struct conn_data *conn_data = malloc(sizeof(struct conn_data));
+            if (conn_data == NULL) {
+                perror("server: malloc");
+                continue;
+            }
+            conn_data->cl_data = *client;
+            conn_data->on_connection_fn = on_connection;
+            pthread_t conn_thread;
+            pthread_create(&conn_thread, NULL, handle_connection, conn_data);
+            pthread_detach(conn_thread);
         }
-        conn_data->cl_data = *client;
-        conn_data->on_connection_fn = on_connection;
-        pthread_t conn_thread;
-        pthread_create(&conn_thread, NULL, handle_connection, conn_data);
-        pthread_detach(conn_thread);
     }
 }
 

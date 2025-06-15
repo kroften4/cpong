@@ -19,6 +19,8 @@ typedef struct {
     server_t *server;
 } client_t;
 
+void __print_queue(struct ts_queue *q);
+
 int server_send(server_t *server, client_t client, struct binarr barr);
 
 /*
