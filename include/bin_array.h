@@ -2,6 +2,8 @@
 #define __BIN_ARRAY_H__
 
 #include <inttypes.h>
+#include <netinet/in.h>
+#include <stdint.h>
 #include <string.h>
 #include <arpa/inet.h>
 #include <stdlib.h>
@@ -10,6 +12,7 @@
 struct binarr {
     int8_t *buf;
     size_t size;
+    size_t index;
 };
 
 static inline struct binarr *binarr_new(struct binarr *arr, size_t capacity) {
@@ -19,6 +22,7 @@ static inline struct binarr *binarr_new(struct binarr *arr, size_t capacity) {
     }
     arr->buf = buf;
     arr->size = 0;
+    arr->index = 0;
     return arr;
 }
 
@@ -49,6 +53,32 @@ static inline void binarr_append_i32(struct binarr *arr, int32_t data) {
 static inline void binarr_append_i32_n(struct binarr *arr, int32_t data) {
     data = htons(data);
     binarr_append_i32(arr, data);
+}
+
+static inline int8_t binarr_read_i8(struct binarr *arr) {
+    return arr->buf[arr->index++];
+}
+
+static inline int16_t binarr_read_i16(struct binarr *arr) {
+    int16_t res = 0;
+    memcpy(&res, arr->buf + arr->index, sizeof(res));
+    arr->index += sizeof(res);
+    return res;
+}
+
+static inline int16_t binarr_read_i16_n(struct binarr *arr) {
+    return ntohs(binarr_read_i16(arr));
+}
+
+static inline int32_t binarr_read_i32(struct binarr *arr) {
+    int32_t res = 0;
+    memcpy(&res, arr->buf + arr->index, sizeof(res));
+    arr->index += sizeof(res);
+    return res;
+}
+
+static inline int32_t binarr_read_i32_n(struct binarr *arr) {
+    return ntohs(binarr_read_i32(arr));
 }
 
 #endif

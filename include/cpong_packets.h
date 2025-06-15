@@ -36,6 +36,19 @@ struct binarr *packet_serialize(struct binarr *barr, struct packet packet) {
     return barr;
 }
 
+struct packet *packet_deserialize(struct packet *packet, struct binarr *barr) {
+    packet->type = binarr_read_i8(barr);
+    packet->size = binarr_read_i32_n(barr);
+    switch (packet->type) {
+    case PACKET_PING:
+        packet->data.ping.dummy = binarr_read_i8(barr);
+        break;
+    default:
+        return NULL;
+    }
+    return packet;
+}
+
 int server_send_packet_serialized(server_t *server, client_t client, struct binarr barr) {
     if (server_send(server, client, barr)) {
         return -1;

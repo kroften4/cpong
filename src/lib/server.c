@@ -1,4 +1,3 @@
-#include <asm-generic/errno-base.h>
 #include <netdb.h>
 #include <string.h>
 #include <stdio.h>
@@ -119,7 +118,7 @@ void *server_worker(server_t *server, void on_connection(client_t)) {
             perror("server: accept");
             continue;
         }
-        printf("server: New connection: %d", connfd);
+        printf("server: New connection: %d ", connfd);
 
         client_t *client = malloc(sizeof(client_t));
         client->fd = connfd;
