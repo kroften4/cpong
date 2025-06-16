@@ -19,12 +19,12 @@ struct binarr *packet_serialize(struct binarr *barr, struct packet packet) {
         binarr_append_i8(barr, packet.data.input.right);
         break;
     case PACKET_STATE:
-        binarr_append_i32(barr, packet.data.state.player1.id);
-        binarr_append_i32(barr, packet.data.state.player1.y);
-        binarr_append_i32(barr, packet.data.state.player2.id);
-        binarr_append_i32(barr, packet.data.state.player2.y);
-        binarr_append_i32(barr, packet.data.state.ball.x);
-        binarr_append_i32(barr, packet.data.state.ball.y);
+        binarr_append_i32_n(barr, packet.data.state.player1.id);
+        binarr_append_i32_n(barr, packet.data.state.player1.y);
+        binarr_append_i32_n(barr, packet.data.state.player2.id);
+        binarr_append_i32_n(barr, packet.data.state.player2.y);
+        binarr_append_i32_n(barr, packet.data.state.ball.x);
+        binarr_append_i32_n(barr, packet.data.state.ball.y);
         break;
     default:
         return NULL;

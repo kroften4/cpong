@@ -55,7 +55,7 @@ void pong(client_t *room[ROOM_SIZE]) {
 
         struct packet packet = {
             .type = PACKET_STATE,
-            .size = 1 + 4 + 4 * 2 * 3,
+            .size = 4 * 2 * 3,
             .data = {.state = {
                 .player1 = {.id = room[0]->id, .y = rand() % 100},
                 .player2 = {.id = room[1]->id, .y = rand() % 100},

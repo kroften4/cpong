@@ -71,11 +71,11 @@ void *matchmaking_worker(void *matchmake_args_p) {
 
 int mm_room_broadcast(server_t *server, client_t *room[ROOM_SIZE], struct packet packet) {
     struct binarr *barr = malloc(sizeof(struct binarr));
-    binarr_new(barr, packet.size);
+    binarr_new(barr, 5 + packet.size);
     packet_serialize(barr, packet);
     for (int i = 0; i < ROOM_SIZE; i++) {
         // TODO: handle disconnection
-        if (server_send_packet_serialized(server, *room[i], *barr)) {
+        if (server_send_packet_serialized(server, *room[i], *barr) == -1) {
             return -1;
         };
     }

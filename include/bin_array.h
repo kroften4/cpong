@@ -51,7 +51,7 @@ static inline void binarr_append_i32(struct binarr *arr, int32_t data) {
 }
 
 static inline void binarr_append_i32_n(struct binarr *arr, int32_t data) {
-    data = htons(data);
+    data = htonl(data);
     binarr_append_i32(arr, data);
 }
 
@@ -78,7 +78,7 @@ static inline int32_t binarr_read_i32(struct binarr *arr) {
 }
 
 static inline int32_t binarr_read_i32_n(struct binarr *arr) {
-    return ntohs(binarr_read_i32(arr));
+    return ntohl(binarr_read_i32(arr));
 }
 
 #endif
