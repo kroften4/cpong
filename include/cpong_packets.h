@@ -5,6 +5,9 @@
 #include "bin_array.h"
 #include "server.h"
 
+#define MAX_PACKET_SIZE 200
+#define PACKET_HEADER_SIZE 5
+
 enum cpong_packet {
     PACKET_PING,
     PACKET_INPUT,
@@ -50,6 +53,8 @@ int server_send_packet(server_t *server, client_t target, struct packet packet);
 int server_broadcast(server_t *server, struct packet packet);
 
 int client_send(server_t server, struct packet packet);
+
+int recv_packet(int fd, struct packet *result);
 
 #endif
 

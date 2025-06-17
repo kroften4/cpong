@@ -1,4 +1,11 @@
-#include <bits/time.h>
+#include <SDL3/SDL.h>
+#include <SDL3/SDL_events.h>
+#include <SDL3/SDL_init.h>
+#include <SDL3/SDL_keyboard.h>
+#include <SDL3/SDL_oldnames.h>
+#include <SDL3/SDL_render.h>
+#include <SDL3/SDL_video.h>
+#include <stdbool.h>
 #include <time.h>
 #include <pthread.h>
 #include <stdint.h>
@@ -11,16 +18,14 @@
 #include "cpong_packets.h"
 #include "server.h"
 
-#define MAX_PACKET_SIZE 100
 #define FPS_CAP 10
 #define MIN_FRAME_DURATION 1.0f / FPS_CAP
-
-#define PACKET_HEADER_SIZE 5
 
 int connect_to_server(char *name, char *port);
 
 struct state state = {0};
 pthread_mutex_t state_mtx;
+server_t server;
 
 void print_state(struct state state) {
     pthread_mutex_lock(&state_mtx);
@@ -75,24 +80,93 @@ float get_curr_time(void) {
     return ts.tv_sec + ts.tv_nsec / 1000000000.0f;
 }
 
+struct input input;
+
+void draw_server_state(struct state state, SDL_Renderer *renderer) {
+    SDL_SetRenderDrawColor(renderer, 255, 0, 0, 50);
+    SDL_FRect paddle1 = {0, state.player1.y, 10, 50};
+    SDL_RenderFillRect(renderer, &paddle1);
+    SDL_FRect paddle2 = {100, state.player2.y, 10, 50};
+    SDL_RenderFillRect(renderer, &paddle2);
+    SDL_FRect ball = {state.ball.x, state.ball.y, 10, 10};
+    SDL_RenderFillRect(renderer, &ball);
+    SDL_RenderPresent(renderer);
+}
+
+void clear_screen(SDL_Renderer *renderer) {
+    SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+    SDL_RenderClear(renderer);
+}
+
+bool update(SDL_Event *event, SDL_Renderer *renderer) {
+    while (SDL_PollEvent(event)) {
+        if (event->type == SDL_EVENT_QUIT) {
+            return false;
+        }
+    }
+
+    const bool *keyboard = SDL_GetKeyboardState(NULL);
+    input.left = keyboard[SDL_SCANCODE_UP] || keyboard[SDL_SCANCODE_W];
+    input.right = keyboard[SDL_SCANCODE_DOWN] || keyboard[SDL_SCANCODE_S];
+
+    clear_screen(renderer);
+    draw_server_state(state, renderer);
+
+    return true;
+}
+
+void fixed_update(void) {
+    struct packet packet = {
+        .type = PACKET_INPUT,
+        .size = sizeof(input.left) * 2,
+        .data = {.input = {
+            .left = input.left,
+            .right = input.right
+        }}
+    };
+    int b_sent = client_send(server, packet);
+    printf("input %d: %d %d\n", b_sent, input.left, input.right);
+}
+
 int main(int argc, char **argv) {
     if (argc != 3) {
         fprintf(stderr, "Usage: %s <server ip/name> <port>\n", argv[0]);
         return EXIT_FAILURE;
     }
-    server_t server = {.fd = connect_to_server(argv[1], argv[2])};
-    printf("Connected to server\n");
+
+    SDL_Init(SDL_INIT_VIDEO);
+    SDL_Window *window;
+    SDL_Renderer *renderer;
+    SDL_CreateWindowAndRenderer("Nukers", 640, 480, 0, &window, &renderer);
+    SDL_Event event;
+
+    server.fd = connect_to_server(argv[1], argv[2]);
+
+    struct packet start_packet = {0};
+    recv_packet(server.fd, &start_packet);
+    if (start_packet.type != PACKET_PING) {
+        fprintf(stderr, "main: did not receive ping packet: %d\n", start_packet.type);
+        return -1;
+    } else {
+        printf("main: received ping packet: %c\n", start_packet.data.ping.dummy);
+    }
 
     pthread_t state_syncer;
     pthread_create(&state_syncer, NULL, state_sync_worker, &server);
     pthread_detach(state_syncer);
 
+
     // float last_frame = get_curr_time();
-    for (;;) {
+    bool quit = false;
+    while (!quit) {
         float frame_start = get_curr_time();
         // float delta_time = last_frame - frame_start;
 
-        print_state(state);
+        if (!update(&event, renderer)) {
+            quit = true;
+        }
+
+        fixed_update();
 
         float frame_end = get_curr_time();
         float frame_duration = frame_end - frame_start;
@@ -102,32 +176,6 @@ int main(int argc, char **argv) {
             nanosleep(&rt, NULL);
         }
     }
-
-    // struct binarr barr = {0};
-    // size_t capacity = packet.size;
-    // binarr_new(&barr, capacity);
-    // recv(server.fd, barr.buf, capacity, 0);
-    // packet_deserialize(&packet, &barr);
-    //
-    // switch (packet.type) {
-    // case PACKET_PING:
-    //     printf("recieved PACKET_PING: type %d; size %u; dummy char %c\n",
-    //            packet.type, packet.size, packet.data.ping.dummy);
-    //     break;
-    // case PACKET_STATE:
-    //     printf("recieved PACKET_STATE: type %d; size %u; \n\tp1: id %d y %d\n\tp2: id %d y %d\n\tball: x %d y %d\n",
-    //            packet.type, packet.size,
-    //            packet.data.state.player1.id,
-    //            packet.data.state.player1.y,
-    //            packet.data.state.player2.id,
-    //            packet.data.state.player2.y,
-    //            packet.data.state.ball.x,
-    //            packet.data.state.ball.y);
-    //     break;
-    // default:
-    //     printf("recieved unknown packet: %d\n", packet.type);
-    //     break;
-    // }
 
     return 0;
 }
@@ -165,6 +213,6 @@ int connect_to_server(char *name, char *port) {
         perror("failed to connect");
         return -1;
     }
-    printf("connected to server\n");
+    printf("connected to server: %d\n", serverfd);
     return serverfd;
 }

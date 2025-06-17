@@ -1,7 +1,9 @@
 #include <inttypes.h>
 #include <arpa/inet.h>
+#include <string.h>
 #include <sys/socket.h>
 #include <stdio.h>
+#include <errno.h>
 #include "ts_queue.h"
 #include "bin_array.h"
 #include "server.h"
@@ -113,11 +115,33 @@ int client_send(server_t server, struct packet packet) {
         return -1;
     }
     // TODO: write proper shit for client
-    if (send(server.fd, barr.buf, barr.size, 0)) {
-        binarr_destroy(barr);
-        return -1;
+    int b_sent = send(server.fd, barr.buf, barr.size, 0);
+    if (b_sent == -1) {
+        fprintf(stderr, "client_send: %d %s\n",server.fd, strerror(errno));
     };
     binarr_destroy(barr);
 
+    return b_sent;
+}
+
+int recv_packet(int fd, struct packet *result) {
+    struct binarr barr = {0};
+    size_t capacity = MAX_PACKET_SIZE;
+    binarr_new(&barr, capacity);
+    ssize_t h_size = recv(fd, barr.buf, PACKET_HEADER_SIZE, 0);
+    if (h_size == -1) {
+        return -1;
+    }
+    binarr_read_i8(&barr);
+    int32_t packet_size = binarr_read_i32_n(&barr);
+    ssize_t d_size = recv(fd, barr.buf + PACKET_HEADER_SIZE, packet_size, 0);
+    barr.index = 0;
+    if (d_size == -1) {
+        return -1;
+    }
+
+    packet_deserialize(result, &barr);
+    binarr_destroy(barr);
     return 0;
 }
+
