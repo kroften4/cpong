@@ -1,10 +1,4 @@
 #include <SDL3/SDL.h>
-#include <SDL3/SDL_events.h>
-#include <SDL3/SDL_init.h>
-#include <SDL3/SDL_keyboard.h>
-#include <SDL3/SDL_oldnames.h>
-#include <SDL3/SDL_render.h>
-#include <SDL3/SDL_video.h>
 #include <stdbool.h>
 #include <time.h>
 #include <pthread.h>
@@ -17,6 +11,7 @@
 #include "bin_array.h"
 #include "cpong_packets.h"
 #include "server.h"
+#include "log.h"
 
 #define FPS_CAP 10
 #define MIN_FRAME_DURATION 1.0f / FPS_CAP
@@ -30,12 +25,9 @@ server_t server;
 void print_state(struct state state) {
     pthread_mutex_lock(&state_mtx);
     printf("STATE:\n\tp1: id %d y %d\n\tp2: id %d y %d\n\tball: x %d y %d\n",
-           state.player1.id,
-           state.player1.y,
-           state.player2.id,
-           state.player2.y,
-           state.ball.x,
-           state.ball.y);
+           state.player1.id, state.player1.y,
+           state.player2.id, state.player2.y,
+           state.ball.x, state.ball.y);
     pthread_mutex_unlock(&state_mtx);
 }
 
@@ -106,8 +98,8 @@ bool update(SDL_Event *event, SDL_Renderer *renderer) {
     }
 
     const bool *keyboard = SDL_GetKeyboardState(NULL);
-    input.left = keyboard[SDL_SCANCODE_UP] || keyboard[SDL_SCANCODE_W];
-    input.right = keyboard[SDL_SCANCODE_DOWN] || keyboard[SDL_SCANCODE_S];
+    input.up = keyboard[SDL_SCANCODE_UP] || keyboard[SDL_SCANCODE_W];
+    input.down = keyboard[SDL_SCANCODE_DOWN] || keyboard[SDL_SCANCODE_S];
 
     clear_screen(renderer);
     draw_server_state(state, renderer);
@@ -118,19 +110,19 @@ bool update(SDL_Event *event, SDL_Renderer *renderer) {
 void fixed_update(void) {
     struct packet packet = {
         .type = PACKET_INPUT,
-        .size = sizeof(input.left) * 2,
+        .size = sizeof(input.up) * 2,
         .data = {.input = {
-            .left = input.left,
-            .right = input.right
+            .up = input.up,
+            .down = input.down
         }}
     };
     int b_sent = client_send(server, packet);
-    printf("input %d: %d %d\n", b_sent, input.left, input.right);
+    LOGF("sent %d, inputs %d %d", b_sent, input.up, input.down);
 }
 
 int main(int argc, char **argv) {
     if (argc != 3) {
-        fprintf(stderr, "Usage: %s <server ip/name> <port>\n", argv[0]);
+        ERRORF("Usage: %s <server ip/name> <port>", argv[0]);
         return EXIT_FAILURE;
     }
 
@@ -145,10 +137,10 @@ int main(int argc, char **argv) {
     struct packet start_packet = {0};
     recv_packet(server.fd, &start_packet);
     if (start_packet.type != PACKET_PING) {
-        fprintf(stderr, "main: did not receive ping packet: %d\n", start_packet.type);
-        return -1;
+        ERRORF("did not receive ping packet: %d", start_packet.type);
+        return 1;
     } else {
-        printf("main: received ping packet: %c\n", start_packet.data.ping.dummy);
+        LOGF("received ping packet: %c", start_packet.data.ping.dummy);
     }
 
     pthread_t state_syncer;
@@ -191,7 +183,7 @@ int connect_to_server(char *name, char *port) {
     hints.ai_family = AF_INET;
     hints.ai_socktype = SOCK_STREAM;
     if ((status = getaddrinfo(name, port, &hints, &res)) != 0) {
-        fprintf(stderr, "getaddrinfo error: %s\n", gai_strerror(status));
+        ERRORF("getaddrinfo: %s", gai_strerror(status));
         return -1;
     }
 
@@ -213,6 +205,6 @@ int connect_to_server(char *name, char *port) {
         perror("failed to connect");
         return -1;
     }
-    printf("connected to server: %d\n", serverfd);
+    LOGF("connected to server: %d", serverfd);
     return serverfd;
 }

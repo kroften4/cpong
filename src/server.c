@@ -2,9 +2,10 @@
 #include "matchmaking.h"
 #include "cpong_packets.h"
 #include "ts_queue.h"
+#include "log.h"
 #include <pthread.h>
-#include <stdio.h>
 #include <poll.h>
+#include <stdlib.h>
 
 #define TICK_CAP 10
 #define MIN_TICK_DURATION 1.0f/10
@@ -20,13 +21,14 @@ void send_q_cond(client_t client);
 
 int main(int argc, char **argv) {
     if (argc != 2) {
-        fprintf(stderr, "Usage: %s <port>", argv[0]);
+        ERRORF("Usage: %s <port>", argv[0]);
+        exit(EXIT_FAILURE);
     }
     char *port = argv[1];
     server_t server = {0};
     server_set_fd(&server, port);
     server.clients = ts_queue_new();
-    printf("Listening on %s\n", port);
+    LOGF("Listening on %s", port);
 
     start_matchmaking_worker(&server, pong);
     server_worker(&server, send_q_cond);
@@ -59,8 +61,9 @@ void *send_state(void *room_p) {
     for (;;) {
         float tick_start = get_curr_time();
 
-        state.player1.y += input1.left - input1.right;
-        state.player2.y += input2.left - input2.right;
+        int speed = 5;
+        state.player1.y -= (input1.up - input1.down) * speed;
+        state.player2.y -= (input2.up - input2.down) * speed;
 
         struct packet packet = {
             .type = PACKET_STATE,
@@ -72,10 +75,10 @@ void *send_state(void *room_p) {
             }}
         };
         if (mm_room_broadcast(server, room, packet) == -1) {
-            printf("pong: Someone disconnected\n");
+            LOG("pong: Someone disconnected");
             return NULL;
         };
-        printf("pong: Broadcasting state: ");
+        LOG("pong: Broadcasting state");
         print_state(packet.data.state);
 
         float tick_end = get_curr_time();
@@ -104,16 +107,16 @@ void *input_receive(void *room_p) {
                 if (packet.type == PACKET_INPUT) {
                     int id = room[i]->id;
                     if (state.player1.id == id) {
-                        input1.left = packet.data.input.left;
-                        input1.right = packet.data.input.right;
-                        printf("input_receive: p1: %d %d\n", input1.left, input1.right);
+                        input1.up = packet.data.input.up;
+                        input1.down = packet.data.input.down;
+                        LOGF("p1: %d %d", input1.up, input1.down);
                     } else if (state.player2.id == id) {
-                        input2.left = packet.data.input.left;
-                        input2.right = packet.data.input.right;
-                        printf("input_receive: p2: %d %d\n", input2.left, input2.right);
+                        input2.up = packet.data.input.up;
+                        input2.down = packet.data.input.down;
+                        LOGF("p2: %d %d", input2.up, input2.down);
                     }
                 } else {
-                    // puts("input_receive: unknown packet");
+                    // LOG("Unknown packet");
                 }
             }
         }
@@ -133,10 +136,10 @@ void pong(client_t *room[ROOM_SIZE]) {
         }}
     };
     if (mm_room_broadcast(room[0]->server, room, start_packet) == -1) {
-        fprintf(stderr, "pong: can't broadcast ping packet\n");
+        ERROR("can't broadcast ping packet");
         return;
     }
-    puts("pong: broadcast ping packet");
+    LOG("broadcasted ping packet");
     pthread_t state_sender;
     pthread_create(&state_sender, NULL, send_state, room);
     pthread_detach(state_sender);
@@ -156,10 +159,10 @@ void ping(client_t client) {
             }}
         };
         if (server_send_packet(client.server, client, packet) == -1) {
-            printf("ping: Connection %d closed\n", client.id);
+            LOGF("Connection %d closed", client.id);
             return;
         };
-        // printf("Sent ping to %d\n", client.id);
+        // LOGF("Sent ping to %d\n", client.id);
     }
 }
 

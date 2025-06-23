@@ -8,6 +8,7 @@
 #include "bin_array.h"
 #include "server.h"
 #include "cpong_packets.h"
+#include "log.h"
 
 struct binarr *packet_serialize(struct binarr *barr, struct packet packet) {
     binarr_append_i8(barr, packet.type);
@@ -17,8 +18,8 @@ struct binarr *packet_serialize(struct binarr *barr, struct packet packet) {
         binarr_append_i8(barr, packet.data.ping.dummy);
         break;
     case PACKET_INPUT:
-        binarr_append_i8(barr, packet.data.input.left);
-        binarr_append_i8(barr, packet.data.input.right);
+        binarr_append_i8(barr, packet.data.input.up);
+        binarr_append_i8(barr, packet.data.input.down);
         break;
     case PACKET_STATE:
         binarr_append_i32_n(barr, packet.data.state.player1.id);
@@ -42,8 +43,8 @@ struct packet *packet_deserialize(struct packet *packet, struct binarr *barr) {
         packet->data.ping.dummy = binarr_read_i8(barr);
         break;
     case PACKET_INPUT:
-        packet->data.input.left = binarr_read_i8(barr);
-        packet->data.input.right = binarr_read_i8(barr);
+        packet->data.input.up = binarr_read_i8(barr);
+        packet->data.input.down = binarr_read_i8(barr);
         break;
     case PACKET_STATE:
         packet->data.state.player1.id = binarr_read_i32_n(barr);
@@ -71,7 +72,7 @@ int server_send_packet(server_t *server, client_t target, struct packet packet) 
     uint64_t capacity = sizeof(packet.type) + sizeof(packet.data) + packet.size;
     binarr_new(&barr, capacity);
     if (packet_serialize(&barr, packet) == NULL) {
-        fprintf(stderr, "unknown packet type");
+        ERROR("unknown packet type");
         binarr_destroy(barr);
         return -1;
     }

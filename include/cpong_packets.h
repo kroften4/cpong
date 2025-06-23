@@ -22,8 +22,8 @@ struct packet {
             char dummy;
         } ping;
         struct input {
-            int8_t left;
-            int8_t right;
+            int8_t up;
+            int8_t down;
         } input;
         struct state {
             struct {

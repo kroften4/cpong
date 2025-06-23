@@ -8,6 +8,7 @@
 
 #include "ts_queue.h"
 #include "server.h"
+#include "log.h"
 
 server_t *server_set_fd(server_t *server, char *port) {
     struct addrinfo hints;
@@ -20,7 +21,7 @@ server_t *server_set_fd(server_t *server, char *port) {
     int ai_status = getaddrinfo(NULL, port, &hints, &server_ai);
     if (ai_status != 0) {
         freeaddrinfo(server_ai);
-        fprintf(stderr, "server start: addrinfo: %s\n", gai_strerror(ai_status));
+        ERRORF("addrinfo: %s", gai_strerror(ai_status));
         return NULL;
     }
 
@@ -42,7 +43,7 @@ server_t *server_set_fd(server_t *server, char *port) {
     }
 
     if (server_ai == NULL) {
-        fprintf(stderr, "server start: Failed to bind\n");
+        ERROR("Failed to bind");
         return NULL;
     }
 
@@ -74,7 +75,7 @@ void server_handle_disconnection(server_t *server, client_t client) {
         }
     }
     if (client_node == NULL) {
-        fprintf(stderr, "disconnection: Cannot find client id %d\n", client.id);
+        ERRORF("Cannot find client id %d", client.id);
     }
     else {
         close(client.fd);
@@ -118,7 +119,7 @@ void *server_worker(server_t *server, void on_connection(client_t)) {
             perror("server: accept");
             continue;
         }
-        printf("server: New connection: %d ", connfd);
+        LOGF("New connection: %d ", connfd);
 
         client_t *client = malloc(sizeof(client_t));
         client->fd = connfd;

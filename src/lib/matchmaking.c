@@ -3,6 +3,7 @@
 #include "server.h"
 #include "ts_queue.h"
 #include "matchmaking.h"
+#include "log.h"
 #include <pthread.h>
 
 static struct ts_queue *rooms;
@@ -53,7 +54,7 @@ void *matchmaking_worker(void *matchmake_args_p) {
                 match_data->room[i] = clients_q->head->data;
                 __ts_queue_dequeue_nolock(clients_q);
             }
-            printf("matchmake: Created a room ");
+            LOG("matchmake: Created a room");
             __print_queue(clients_q);
 
             // add to room list
