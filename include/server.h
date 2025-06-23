@@ -32,11 +32,13 @@ int server_send(server_t *server, client_t client, struct binarr barr);
  */
 server_t *server_set_fd(server_t *server, char *port);
 
+typedef void (*on_connection_t)(client_t client);
+
 /*
  * Start a TCP server and call `on_connection` in a new thread on connection
  * 
  * Returns -1 on error
  */
-void *server_worker(server_t *server, void on_connection(client_t cl_data));
+void *server_worker(server_t *server, on_connection_t);
 
 #endif

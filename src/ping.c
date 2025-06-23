@@ -1,6 +1,5 @@
 #include "cpong_packets.h"
-
-void ping(client_t client);
+#include "log.h"
 
 void ping(client_t client) {
     for (;;) {
@@ -12,10 +11,10 @@ void ping(client_t client) {
             }}
         };
         if (server_send_packet(client.server, client, packet) == -1) {
-            printf("ping: Connection %d closed\n", client.id);
+            LOGF("ping: Connection %d closed", client.id);
             return;
         };
-        // printf("Sent ping to %d\n", client.id);
+        // LOGF("Sent ping to %d", client.id);
     }
 }
 

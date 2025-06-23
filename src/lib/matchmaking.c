@@ -8,10 +8,20 @@
 
 static struct ts_queue *rooms;
 
+struct mm_worker_args {
+    server_t *server;
+    on_match_t on_match_fn;
+};
+
+struct room_data {
+    client_t *room[ROOM_SIZE];
+    on_match_t on_match_fn;
+};
+
 pthread_cond_t mm_q_has_match = PTHREAD_COND_INITIALIZER;
 
-int start_matchmaking_worker(server_t *server, on_match_fn_t on_match_fn) {
-    struct mm_args *mm_args = malloc(sizeof(struct mm_args));
+int start_matchmaking_worker(server_t *server, on_match_t on_match_fn) {
+    struct mm_worker_args *mm_args = malloc(sizeof(struct mm_worker_args));
     mm_args->on_match_fn = on_match_fn;
     mm_args->server = server;
 
@@ -29,9 +39,10 @@ void *__handle_match(void *match_data_p) {
     match_data->on_match_fn(match_data->room);
     return NULL;
 }
-void *matchmaking_worker(void *matchmake_args_p) {
-    struct mm_args *mm_args = matchmake_args_p;
-    struct ts_queue *clients_q = mm_args->server->clients;
+
+void *matchmaking_worker(void *mm_worker_args_p) {
+    struct mm_worker_args *startup_args = mm_worker_args_p;
+    struct ts_queue *clients_q = startup_args->server->clients;
     while (1) {
         pthread_mutex_lock(&clients_q->mutex);
         while (clients_q->size < ROOM_SIZE) {
@@ -47,7 +58,7 @@ void *matchmaking_worker(void *matchmake_args_p) {
                 perror("matchmake: malloc");
                 return NULL;
             }
-            match_data->on_match_fn = mm_args->on_match_fn;
+            match_data->on_match_fn = startup_args->on_match_fn;
 
             // fill it up
             for (int i = 0; i < ROOM_SIZE; i++) {
@@ -68,6 +79,11 @@ void *matchmaking_worker(void *matchmake_args_p) {
 
         pthread_mutex_unlock(&clients_q->mutex);
     }
+}
+
+void send_q_cond(client_t client) {
+    (void)client;
+    pthread_cond_signal(&mm_q_has_match);
 }
 
 int mm_room_broadcast(server_t *server, client_t *room[ROOM_SIZE], struct packet packet) {

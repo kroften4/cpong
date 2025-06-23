@@ -14,9 +14,7 @@ struct state state = {0};
 struct input input1 = {0, 0};
 struct input input2 = {0, 0};
 
-void ping(client_t client);
 void pong(client_t *room[ROOM_SIZE]);
-
 void send_q_cond(client_t client);
 
 int main(int argc, char **argv) {
@@ -34,19 +32,11 @@ int main(int argc, char **argv) {
     server_worker(&server, send_q_cond);
 }
 
-void send_q_cond(client_t client) {
-    (void)client;
-    pthread_cond_signal(&mm_q_has_match);
-}
-
 void print_state(struct state state) {
     printf("STATE:\n\tp1: id %d y %d\n\tp2: id %d y %d\n\tball: x %d y %d\n",
-           state.player1.id,
-           state.player1.y,
-           state.player2.id,
-           state.player2.y,
-           state.ball.x,
-           state.ball.y);
+           state.player1.id, state.player1.y,
+           state.player2.id, state.player2.y,
+           state.ball.x, state.ball.y);
 }
 
 float get_curr_time(void) {
@@ -58,7 +48,7 @@ float get_curr_time(void) {
 void *send_state(void *room_p) {
     client_t **room = room_p;
     server_t *server = room[0]->server;
-    for (;;) {
+    while (1) {
         float tick_start = get_curr_time();
 
         int speed = 5;
@@ -74,10 +64,13 @@ void *send_state(void *room_p) {
                 .ball = {.x = rand() % 100, .y = rand() % 100}
             }}
         };
+
+        // TODO: send disband signal
         if (mm_room_broadcast(server, room, packet) == -1) {
             LOG("pong: Someone disconnected");
             return NULL;
         };
+
         LOG("pong: Broadcasting state");
         print_state(packet.data.state);
 
@@ -85,6 +78,7 @@ void *send_state(void *room_p) {
         float tick_duration = tick_end - tick_start;
         float sleep_time = MIN_TICK_DURATION - tick_duration;
         if (sleep_time > 0) {
+            // TODO: overflow issues? work in nanosecs, why use floats
             struct timespec rt = {.tv_sec = 0, .tv_nsec = sleep_time * 1000000000};
             nanosleep(&rt, NULL);
         }
@@ -147,22 +141,5 @@ void pong(client_t *room[ROOM_SIZE]) {
     pthread_t input_receiver;
     pthread_create(&input_receiver, NULL, input_receive, room);
     pthread_detach(input_receiver);
-}
-
-void ping(client_t client) {
-    for (;;) {
-        struct packet packet = {
-            .type = PACKET_PING,
-            .size = 1 + 4 + 1,
-            .data = {.ping = {
-                .dummy = 'p'
-            }}
-        };
-        if (server_send_packet(client.server, client, packet) == -1) {
-            LOGF("Connection %d closed", client.id);
-            return;
-        };
-        // LOGF("Sent ping to %d\n", client.id);
-    }
 }
 
