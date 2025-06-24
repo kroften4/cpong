@@ -10,12 +10,15 @@
 #define TICK_CAP 10
 #define MIN_TICK_DURATION 1.0f/10
 
-struct state state = {0};
-struct input input1 = {0, 0};
-struct input input2 = {0, 0};
+static struct state state = {0};
+static struct input input1 = {0, 0};
+static struct input input2 = {0, 0};
 
-void pong(client_t *room[ROOM_SIZE]);
-void send_q_cond(client_t client);
+void start_pong_game(struct room *room);
+
+void on_disband(struct room *room) {
+    LOGF("disbanded room %d", room->id);
+}
 
 int main(int argc, char **argv) {
     if (argc != 2) {
@@ -28,8 +31,7 @@ int main(int argc, char **argv) {
     server.clients = ts_queue_new();
     LOGF("Listening on %s", port);
 
-    start_matchmaking_worker(&server, pong);
-    server_worker(&server, send_q_cond);
+    start_matchmaking_worker(&server, NULL, start_pong_game, on_disband);
 }
 
 void print_state(struct state state) {
@@ -46,9 +48,9 @@ float get_curr_time(void) {
 }
 
 void *send_state(void *room_p) {
-    client_t **room = room_p;
-    server_t *server = room[0]->server;
-    while (1) {
+    struct room *room = room_p;
+    server_t *server = room->clients[0]->server;
+    while (!room->is_disbanded) {
         float tick_start = get_curr_time();
 
         int speed = 5;
@@ -59,16 +61,15 @@ void *send_state(void *room_p) {
             .type = PACKET_STATE,
             .size = 4 * 2 * 3,
             .data = {.state = {
-                .player1 = {.id = room[0]->id, .y = state.player1.y},
-                .player2 = {.id = room[1]->id, .y = state.player2.y},
+                .player1 = {.id = room->clients[0]->id, .y = state.player1.y},
+                .player2 = {.id = room->clients[1]->id, .y = state.player2.y},
                 .ball = {.x = rand() % 100, .y = rand() % 100}
             }}
         };
 
-        // TODO: send disband signal
         if (mm_room_broadcast(server, room, packet) == -1) {
             LOG("pong: Someone disconnected");
-            return NULL;
+            break;
         };
 
         LOG("pong: Broadcasting state");
@@ -83,23 +84,30 @@ void *send_state(void *room_p) {
             nanosleep(&rt, NULL);
         }
     }
+    return NULL;
 }
 
 void *input_receive(void *room_p) {
-    client_t **room = room_p;
+    struct room *room = room_p;
     struct pollfd fds[ROOM_SIZE] = {0};
     for (int i = 0; i < ROOM_SIZE; i++) {
-        fds[i].fd = room[i]->fd;
+        fds[i].fd = room->clients[i]->fd;
         fds[i].events = POLLIN;
     }
-    for (;;) {
+    while (!room->is_disbanded) {
         poll(fds, ROOM_SIZE, -1);
         for (int i = 0; i < ROOM_SIZE; i++) {
             if (fds[i].revents & POLLIN) {
                 struct packet packet;
-                recv_packet(fds[i].fd, &packet);
+                int res = recv_packet(fds[i].fd, &packet);
+                if (res == 0) {
+                    LOG("Someone disconnected");
+                    return NULL;
+                } else if (res == -1) {
+                    ERROR("recv_packet returned -1");
+                }
                 if (packet.type == PACKET_INPUT) {
-                    int id = room[i]->id;
+                    int id = room->clients[i]->id;
                     if (state.player1.id == id) {
                         input1.up = packet.data.input.up;
                         input1.down = packet.data.input.down;
@@ -110,7 +118,7 @@ void *input_receive(void *room_p) {
                         LOGF("p2: %d %d", input2.up, input2.down);
                     }
                 } else {
-                    // LOG("Unknown packet");
+                    WARN("Unknown packet");
                 }
             }
         }
@@ -118,9 +126,10 @@ void *input_receive(void *room_p) {
     return NULL;
 }
 
-void pong(client_t *room[ROOM_SIZE]) {
-    state.player1.id = room[0]->id;
-    state.player2.id = room[1]->id;
+void start_pong_game(struct room *room) {
+    LOG("Starting pong");
+    state.player1.id = room->clients[0]->id;
+    state.player2.id = room->clients[1]->id;
 
     struct packet start_packet = {
         .type = PACKET_PING,
@@ -129,7 +138,7 @@ void pong(client_t *room[ROOM_SIZE]) {
             .dummy = 's'
         }}
     };
-    if (mm_room_broadcast(room[0]->server, room, start_packet) == -1) {
+    if (mm_room_broadcast(room->clients[0]->server, room, start_packet) == -1) {
         ERROR("can't broadcast ping packet");
         return;
     }

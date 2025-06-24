@@ -6,37 +6,52 @@
 #include "log.h"
 #include <pthread.h>
 
-static struct ts_queue *rooms;
-
 struct mm_worker_args {
     server_t *server;
+    on_connection_t on_connection_fn;
     on_match_t on_match_fn;
+    on_disband_t on_disband_fn;
 };
 
-struct room_data {
-    client_t *room[ROOM_SIZE];
-    on_match_t on_match_fn;
-};
+typedef struct {
+    struct mm_worker_args args;
+    struct ts_queue *rooms;
+} mm_server_t;
+
+static mm_server_t mm_server;
 
 pthread_cond_t mm_q_has_match = PTHREAD_COND_INITIALIZER;
 
-int start_matchmaking_worker(server_t *server, on_match_t on_match_fn) {
-    struct mm_worker_args *mm_args = malloc(sizeof(struct mm_worker_args));
-    mm_args->on_match_fn = on_match_fn;
-    mm_args->server = server;
+void mm_on_connection(client_t client);
 
-    rooms = ts_queue_new();
+int start_matchmaking_worker(server_t *server,
+                             on_connection_t on_connection_fn,
+                             on_match_t on_match_fn,
+                             on_disband_t on_disband_fn) {
+    struct mm_worker_args *mm_args = malloc(sizeof(struct mm_worker_args));
+    mm_args->server = server;
+    mm_args->on_connection_fn = on_connection_fn;
+    mm_args->on_match_fn = on_match_fn;
+    mm_args->on_disband_fn = on_disband_fn;
+
+    mm_server.rooms = ts_queue_new();
+    mm_server.args = *mm_args;
 
     pthread_t matcher;
     pthread_create(&matcher, NULL, matchmaking_worker, mm_args);
     pthread_detach(matcher);
+    server_worker(server, mm_on_connection);
     return 0;
 }
 
-
-void *__handle_match(void *match_data_p) {
-    struct room_data *match_data = match_data_p;
-    match_data->on_match_fn(match_data->room);
+void *mm_handle_match(void *room_data_p) {
+    struct room *room = room_data_p;
+    if (mm_server.args.on_match_fn != NULL) {
+        LOG("calling on_match_fn");
+        mm_server.args.on_match_fn(room);
+    } else {
+        LOG("null");
+    }
     return NULL;
 }
 
@@ -53,27 +68,27 @@ void *matchmaking_worker(void *mm_worker_args_p) {
             // if enough players in q to create a room, do so
 
             // create room
-            struct room_data *match_data = malloc(sizeof(struct room_data));
-            if (match_data == NULL) {
+            struct room *room = malloc(sizeof(struct room));
+            if (room == NULL) {
                 perror("matchmake: malloc");
                 return NULL;
             }
-            match_data->on_match_fn = startup_args->on_match_fn;
 
             // fill it up
             for (int i = 0; i < ROOM_SIZE; i++) {
-                match_data->room[i] = clients_q->head->data;
+                room->clients[i] = clients_q->head->data;
                 __ts_queue_dequeue_nolock(clients_q);
             }
+            room->id = room->clients[0]->id;
+            room->is_disbanded = false;
             LOG("matchmake: Created a room");
             __print_queue(clients_q);
 
             // add to room list
-            __ts_queue_enqueue_nolock(rooms, match_data);
+            __ts_queue_enqueue_nolock(mm_server.rooms, room);
 
             pthread_t game_thread;
-            pthread_create(&game_thread, NULL, __handle_match,
-                           match_data);
+            pthread_create(&game_thread, NULL, mm_handle_match, room);
             pthread_detach(game_thread);
         }
 
@@ -81,18 +96,29 @@ void *matchmaking_worker(void *mm_worker_args_p) {
     }
 }
 
-void send_q_cond(client_t client) {
+void mm_on_connection(client_t client) {
     (void)client;
     pthread_cond_signal(&mm_q_has_match);
+    if (mm_server.args.on_connection_fn != NULL)
+        mm_server.args.on_connection_fn(client);
 }
 
-int mm_room_broadcast(server_t *server, client_t *room[ROOM_SIZE], struct packet packet) {
+void handle_disband(struct room *room) {
+    room->is_disbanded = true;
+    if (mm_server.args.on_disband_fn != NULL)
+        mm_server.args.on_disband_fn(room);
+}
+
+int mm_room_broadcast(server_t *server, struct room *room,
+                      struct packet packet) {
     struct binarr *barr = malloc(sizeof(struct binarr));
     binarr_new(barr, 5 + packet.size);
     packet_serialize(barr, packet);
     for (int i = 0; i < ROOM_SIZE; i++) {
         // TODO: handle disconnection
-        if (server_send_packet_serialized(server, *room[i], *barr) == -1) {
+        client_t *receiver = room->clients[i];
+        if (server_send_packet_serialized(server, *receiver, *barr) == -1) {
+            handle_disband(room);
             return -1;
         };
     }

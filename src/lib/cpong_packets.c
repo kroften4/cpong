@@ -130,15 +130,15 @@ int recv_packet(int fd, struct packet *result) {
     size_t capacity = MAX_PACKET_SIZE;
     binarr_new(&barr, capacity);
     ssize_t h_size = recv(fd, barr.buf, PACKET_HEADER_SIZE, 0);
-    if (h_size == -1) {
-        return -1;
+    if (h_size <= 0) {
+        return h_size;
     }
     binarr_read_i8(&barr);
     int32_t packet_size = binarr_read_i32_n(&barr);
     ssize_t d_size = recv(fd, barr.buf + PACKET_HEADER_SIZE, packet_size, 0);
     barr.index = 0;
-    if (d_size == -1) {
-        return -1;
+    if (d_size <= 0) {
+        return d_size;
     }
 
     packet_deserialize(result, &barr);
