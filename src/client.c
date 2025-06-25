@@ -84,7 +84,7 @@ bool update(int delta_time, void *update_args);
 
 bool network_update(int delta_time, void *dummy) {
     (void)dummy;
-    if (delta_time > 5 + MIN_NET_TICK_DURATION_MS) {
+    if (delta_time > 3 + MIN_NET_TICK_DURATION_MS) {
         WARNF("Network updates running slow: %d ms behind", 
               delta_time - MIN_NET_TICK_DURATION_MS);
     }

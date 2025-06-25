@@ -44,50 +44,41 @@ void print_state(struct state state) {
            state.ball.x, state.ball.y);
 }
 
-void *send_state(void *room_p) {
+bool send_state(int delta_time, void *room_p) {
+    if (delta_time > 3 + MIN_TICK_DURATION_MS) {
+        WARNF("Server running slow: %d ms behind", 
+              delta_time - MIN_TICK_DURATION_MS);
+    }
     struct room *room = room_p;
     server_t *server = room->clients[0]->server;
-    while (!room->is_disbanded) {
-        float tick_start = get_curr_time_ms();
 
-        int speed = 1;
-        pthread_mutex_lock(&input_mtx);
-        state.player1.y -= speed * input1.input_acc_ms;
-        state.player2.y -= speed * input2.input_acc_ms;
-        input1.input_acc_ms = 0;
-        input2.input_acc_ms = 0;
-        pthread_mutex_unlock(&input_mtx);
+    int speed = 1;
+    pthread_mutex_lock(&input_mtx);
+    state.player1.y -= speed * input1.input_acc_ms;
+    state.player2.y -= speed * input2.input_acc_ms;
+    input1.input_acc_ms = 0;
+    input2.input_acc_ms = 0;
+    pthread_mutex_unlock(&input_mtx);
 
-        struct packet packet = {
-            .type = PACKET_STATE,
-            .size = 4 * 3 * 3,
-            .data = {.state = {
-                .player1 = {.id = room->clients[0]->id, .y = state.player1.y},
-                .player2 = {.id = room->clients[1]->id, .y = state.player2.y},
-                .ball = {.x = rand() % 100, .y = rand() % 100}
-            }}
-        };
+    struct packet packet = {
+        .type = PACKET_STATE,
+        .size = 4 * 3 * 3,
+        .data = {.state = {
+            .player1 = {.id = room->clients[0]->id, .y = state.player1.y},
+            .player2 = {.id = room->clients[1]->id, .y = state.player2.y},
+            .ball = {.x = rand() % 100, .y = rand() % 100}
+        }}
+    };
 
-        if (mm_room_broadcast(server, room, packet) == -1) {
-            LOG("pong: Someone disconnected");
-            break;
-        };
+    if (mm_room_broadcast(server, room, packet) == -1) {
+        LOG("pong: Someone disconnected");
+        return false;
+    };
 
-        LOG("pong: Broadcasting state");
-        print_state(packet.data.state);
+    LOG("pong: Broadcasting state");
+    print_state(packet.data.state);
 
-        int32_t tick_end = get_curr_time_ms();
-        int32_t tick_duration = tick_end - tick_start;
-        int32_t sleep_time_ms = MIN_TICK_DURATION_MS - tick_duration;
-        if (sleep_time_ms > 0) {
-            struct timespec rt = {
-                .tv_sec = sleep_time_ms / 1000, 
-                .tv_nsec = sleep_time_ms % 1000 * 1000000
-            };
-            nanosleep(&rt, NULL);
-        }
-    }
-    return NULL;
+    return !room->is_disbanded;
 }
 
 void *input_receive(void *room_p) {
@@ -146,12 +137,18 @@ void start_pong_game(struct room *room) {
         return;
     }
     LOG("broadcasted ping packet");
-    pthread_t state_sender;
-    pthread_create(&state_sender, NULL, send_state, room);
-    pthread_detach(state_sender);
+
+    struct run_every_args state_sender_re_args = {
+        .func = send_state,
+        .args = room,
+        .interval_ms = MIN_TICK_DURATION_MS
+    };
+    pthread_t state_sender = start_run_every_thread(&state_sender_re_args);
 
     pthread_t input_receiver;
     pthread_create(&input_receiver, NULL, input_receive, room);
     pthread_detach(input_receiver);
+
+    pthread_join(state_sender, NULL);
 }
 
