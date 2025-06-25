@@ -41,4 +41,6 @@ typedef void (*on_connection_t)(client_t client);
  */
 void *server_worker(server_t *server, on_connection_t);
 
+int connect_to_server(char *name, char *port);
+
 #endif

@@ -18,16 +18,18 @@ struct binarr *packet_serialize(struct binarr *barr, struct packet packet) {
         binarr_append_i8(barr, packet.data.ping.dummy);
         break;
     case PACKET_INPUT:
-        binarr_append_i8(barr, packet.data.input.up);
-        binarr_append_i8(barr, packet.data.input.down);
+        binarr_append_i32_n(barr, packet.data.input.input_acc_ms);
         break;
     case PACKET_STATE:
         binarr_append_i32_n(barr, packet.data.state.player1.id);
         binarr_append_i32_n(barr, packet.data.state.player1.y);
+        binarr_append_i32_n(barr, packet.data.state.player1.velocity);
         binarr_append_i32_n(barr, packet.data.state.player2.id);
         binarr_append_i32_n(barr, packet.data.state.player2.y);
+        binarr_append_i32_n(barr, packet.data.state.player2.velocity);
         binarr_append_i32_n(barr, packet.data.state.ball.x);
         binarr_append_i32_n(barr, packet.data.state.ball.y);
+        binarr_append_i32_n(barr, packet.data.state.ball.velocity);
         break;
     default:
         return NULL;
@@ -43,16 +45,18 @@ struct packet *packet_deserialize(struct packet *packet, struct binarr *barr) {
         packet->data.ping.dummy = binarr_read_i8(barr);
         break;
     case PACKET_INPUT:
-        packet->data.input.up = binarr_read_i8(barr);
-        packet->data.input.down = binarr_read_i8(barr);
+        packet->data.input.input_acc_ms = binarr_read_i32_n(barr);
         break;
     case PACKET_STATE:
         packet->data.state.player1.id = binarr_read_i32_n(barr);
         packet->data.state.player1.y = binarr_read_i32_n(barr);
+        packet->data.state.player1.velocity = binarr_read_i32_n(barr);
         packet->data.state.player2.id = binarr_read_i32_n(barr);
         packet->data.state.player2.y = binarr_read_i32_n(barr);
+        packet->data.state.player2.velocity = binarr_read_i32_n(barr);
         packet->data.state.ball.x = binarr_read_i32_n(barr);
         packet->data.state.ball.y = binarr_read_i32_n(barr);
+        packet->data.state.ball.velocity = binarr_read_i32_n(barr);
         break;
     default:
         return NULL;
@@ -90,7 +94,7 @@ int server_broadcast(server_t *server, struct packet packet) {
     uint64_t capacity = sizeof(packet.type) + sizeof(packet.data) + packet.size;
     binarr_new(&barr, capacity);
     if (packet_serialize(&barr, packet) == NULL) {
-        fprintf(stderr, "unknown packet type");
+        ERROR("unknown packet type");
         binarr_destroy(barr);
         return -1;
     }
@@ -107,18 +111,18 @@ int server_broadcast(server_t *server, struct packet packet) {
 
 int client_send(server_t server, struct packet packet) {
     struct binarr barr = {0};
-    uint64_t capacity = sizeof(packet.type) + sizeof(packet.data) + packet.size;
+    uint64_t capacity = PACKET_HEADER_SIZE + packet.size;
     binarr_new(&barr, capacity);
 
     if (packet_serialize(&barr, packet) == NULL) {
-        fprintf(stderr, "unknown packet type");
+        ERROR("unknown packet type");
         binarr_destroy(barr);
         return -1;
     }
     // TODO: write proper shit for client
     int b_sent = send(server.fd, barr.buf, barr.size, 0);
     if (b_sent == -1) {
-        fprintf(stderr, "client_send: %d %s\n",server.fd, strerror(errno));
+        ERRORF("client_send: %d %s", server.fd, strerror(errno));
     };
     binarr_destroy(barr);
 
@@ -143,6 +147,6 @@ int recv_packet(int fd, struct packet *result) {
 
     packet_deserialize(result, &barr);
     binarr_destroy(barr);
-    return 0;
+    return h_size + d_size;
 }
 

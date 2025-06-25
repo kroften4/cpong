@@ -3,16 +3,19 @@
 #include "cpong_packets.h"
 #include "ts_queue.h"
 #include "log.h"
+#include "run_every.h"
 #include <pthread.h>
 #include <poll.h>
+#include <stdint.h>
 #include <stdlib.h>
 
 #define TICK_CAP 10
-#define MIN_TICK_DURATION 1.0f/10
+#define MIN_TICK_DURATION_MS 1000 / TICK_CAP
 
 static struct state state = {0};
-static struct input input1 = {0, 0};
-static struct input input2 = {0, 0};
+static struct input input1 = {0};
+static struct input input2 = {0};
+pthread_mutex_t input_mtx = PTHREAD_MUTEX_INITIALIZER;
 
 void start_pong_game(struct room *room);
 
@@ -31,7 +34,7 @@ int main(int argc, char **argv) {
     server.clients = ts_queue_new();
     LOGF("Listening on %s", port);
 
-    start_matchmaking_worker(&server, NULL, start_pong_game, on_disband);
+    matchmaking_server_worker(&server, NULL, start_pong_game, on_disband);
 }
 
 void print_state(struct state state) {
@@ -41,25 +44,23 @@ void print_state(struct state state) {
            state.ball.x, state.ball.y);
 }
 
-float get_curr_time(void) {
-    struct timespec ts = {0};
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    return ts.tv_sec + ts.tv_nsec / 1000000000.0f;
-}
-
 void *send_state(void *room_p) {
     struct room *room = room_p;
     server_t *server = room->clients[0]->server;
     while (!room->is_disbanded) {
-        float tick_start = get_curr_time();
+        float tick_start = get_curr_time_ms();
 
-        int speed = 5;
-        state.player1.y -= (input1.up - input1.down) * speed;
-        state.player2.y -= (input2.up - input2.down) * speed;
+        int speed = 1;
+        pthread_mutex_lock(&input_mtx);
+        state.player1.y -= speed * input1.input_acc_ms;
+        state.player2.y -= speed * input2.input_acc_ms;
+        input1.input_acc_ms = 0;
+        input2.input_acc_ms = 0;
+        pthread_mutex_unlock(&input_mtx);
 
         struct packet packet = {
             .type = PACKET_STATE,
-            .size = 4 * 2 * 3,
+            .size = 4 * 3 * 3,
             .data = {.state = {
                 .player1 = {.id = room->clients[0]->id, .y = state.player1.y},
                 .player2 = {.id = room->clients[1]->id, .y = state.player2.y},
@@ -75,12 +76,14 @@ void *send_state(void *room_p) {
         LOG("pong: Broadcasting state");
         print_state(packet.data.state);
 
-        float tick_end = get_curr_time();
-        float tick_duration = tick_end - tick_start;
-        float sleep_time = MIN_TICK_DURATION - tick_duration;
-        if (sleep_time > 0) {
-            // TODO: overflow issues? work in nanosecs, why use floats
-            struct timespec rt = {.tv_sec = 0, .tv_nsec = sleep_time * 1000000000};
+        int32_t tick_end = get_curr_time_ms();
+        int32_t tick_duration = tick_end - tick_start;
+        int32_t sleep_time_ms = MIN_TICK_DURATION_MS - tick_duration;
+        if (sleep_time_ms > 0) {
+            struct timespec rt = {
+                .tv_sec = sleep_time_ms / 1000, 
+                .tv_nsec = sleep_time_ms % 1000 * 1000000
+            };
             nanosleep(&rt, NULL);
         }
     }
@@ -108,15 +111,15 @@ void *input_receive(void *room_p) {
                 }
                 if (packet.type == PACKET_INPUT) {
                     int id = room->clients[i]->id;
+                    pthread_mutex_lock(&input_mtx);
                     if (state.player1.id == id) {
-                        input1.up = packet.data.input.up;
-                        input1.down = packet.data.input.down;
-                        LOGF("p1: %d %d", input1.up, input1.down);
+                        input1.input_acc_ms += packet.data.input.input_acc_ms;
+                        LOGF("p1: %d", input1.input_acc_ms);
                     } else if (state.player2.id == id) {
-                        input2.up = packet.data.input.up;
-                        input2.down = packet.data.input.down;
-                        LOGF("p2: %d %d", input2.up, input2.down);
+                        input2.input_acc_ms += packet.data.input.input_acc_ms;
+                        LOGF("p2: %d", input2.input_acc_ms);
                     }
+                    pthread_mutex_unlock(&input_mtx);
                 } else {
                     WARN("Unknown packet");
                 }

@@ -22,21 +22,23 @@ struct packet {
             char dummy;
         } ping;
         struct input {
-            int8_t up;
-            int8_t down;
+            int32_t input_acc_ms;
         } input;
         struct state {
             struct {
                 int32_t id;
                 int32_t y;
+                int32_t velocity;
             } player1;
             struct {
                 int32_t id;
                 int32_t y;
+                int32_t velocity;
             } player2;
             struct {
                 int32_t x;
                 int32_t y;
+                int32_t velocity;
             } ball;
         } state;
     } data;

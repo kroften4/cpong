@@ -19,7 +19,11 @@ typedef void (*on_disband_t)(struct room *room);
 extern pthread_cond_t mm_q_has_match;
 
 void *matchmaking_worker(void *mm_worker_args_p);
-int start_matchmaking_worker(server_t *server, on_connection_t on_connection_fn, on_match_t on_match_fn, on_disband_t on_disband_fn);
+
+int matchmaking_server_worker(server_t *server,
+                              on_connection_t on_connection_fn,
+                              on_match_t on_match_fn,
+                              on_disband_t on_disband_fn);
 
 int mm_room_broadcast(server_t *server, struct room *room,
                       struct packet packet);

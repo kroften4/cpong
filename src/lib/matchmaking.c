@@ -24,10 +24,10 @@ pthread_cond_t mm_q_has_match = PTHREAD_COND_INITIALIZER;
 
 void mm_on_connection(client_t client);
 
-int start_matchmaking_worker(server_t *server,
-                             on_connection_t on_connection_fn,
-                             on_match_t on_match_fn,
-                             on_disband_t on_disband_fn) {
+int matchmaking_server_worker(server_t *server,
+                              on_connection_t on_connection_fn,
+                              on_match_t on_match_fn,
+                              on_disband_t on_disband_fn) {
     struct mm_worker_args *mm_args = malloc(sizeof(struct mm_worker_args));
     mm_args->server = server;
     mm_args->on_connection_fn = on_connection_fn;
@@ -97,7 +97,6 @@ void *matchmaking_worker(void *mm_worker_args_p) {
 }
 
 void mm_on_connection(client_t client) {
-    (void)client;
     pthread_cond_signal(&mm_q_has_match);
     if (mm_server.args.on_connection_fn != NULL)
         mm_server.args.on_connection_fn(client);

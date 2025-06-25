@@ -19,8 +19,8 @@
 #define ERRORF(message, ...) fprintf(stderr, __RED_ANSI __LOG_ARGS(ERROR_PREFIX, message) __VA_OPT__(,)  __VA_ARGS__)
 
 #define LOG(message) printf(__LOG_ARGS(LOG_PREFIX, message))
-#define WARN(message) fprintf(stderr, __LOG_ARGS(WARN_PREFIX, message))
-#define ERROR(message) fprintf(stderr, __LOG_ARGS(ERROR_PREFIX, message))
+#define WARN(message) fprintf(stderr, __YELLOW_ANSI __LOG_ARGS(WARN_PREFIX, message))
+#define ERROR(message) fprintf(stderr, __RED_ANSI __LOG_ARGS(ERROR_PREFIX, message))
 
 #endif // _UTILS_H
 

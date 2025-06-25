@@ -145,3 +145,40 @@ void *server_worker(server_t *server, void on_connection(client_t)) {
     }
 }
 
+int connect_to_server(char *name, char *port) {
+    int status;
+    int serverfd;
+    struct addrinfo hints;
+    struct addrinfo *res;
+
+    // get addrinfo for remote
+    memset(&hints, 0, sizeof hints);
+    hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_STREAM;
+    if ((status = getaddrinfo(name, port, &hints, &res)) != 0) {
+        ERRORF("getaddrinfo: %s", gai_strerror(status));
+        return -1;
+    }
+
+    // select the appropriate addrinfo linked list member
+    if (res == NULL) {
+        perror("couldn't find host addrinfo (list is empty)");
+        return -1;
+    }
+    struct addrinfo server_ai = *res;
+    freeaddrinfo(res);
+
+    // make a socket and connect
+    if ((serverfd = socket(server_ai.ai_family, server_ai.ai_socktype, server_ai.ai_protocol)) == -1) {
+        perror("failed to create a socket");
+        return -1;
+    }
+
+    if (connect(serverfd, server_ai.ai_addr, server_ai.ai_addrlen) == -1) {
+        perror("failed to connect");
+        return -1;
+    }
+    LOGF("connected to server: %d", serverfd);
+    return serverfd;
+}
+
