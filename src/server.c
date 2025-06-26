@@ -1,4 +1,5 @@
 #include "server.h"
+#include "cpong_logic.h"
 #include "matchmaking.h"
 #include "cpong_packets.h"
 #include "ts_queue.h"
@@ -12,7 +13,7 @@
 #define TICK_CAP 10
 #define MIN_TICK_DURATION_MS 1000 / TICK_CAP
 
-static struct state state = {0};
+static struct pong_state state;
 static struct input input1 = {0};
 static struct input input2 = {0};
 pthread_mutex_t input_mtx = PTHREAD_MUTEX_INITIALIZER;
@@ -37,13 +38,6 @@ int main(int argc, char **argv) {
     matchmaking_server_worker(&server, NULL, start_pong_game, on_disband);
 }
 
-void print_state(struct state state) {
-    printf("STATE:\n\tp1: id %d y %d\n\tp2: id %d y %d\n\tball: x %d y %d\n",
-           state.player1.id, state.player1.y,
-           state.player2.id, state.player2.y,
-           state.ball.x, state.ball.y);
-}
-
 bool send_state(int delta_time, void *room_p) {
     if (delta_time > 3 + MIN_TICK_DURATION_MS) {
         WARNF("Server running slow: %d ms behind", 
@@ -52,26 +46,21 @@ bool send_state(int delta_time, void *room_p) {
     struct room *room = room_p;
     server_t *server = room->clients[0]->server;
 
-    int speed = 1;
     pthread_mutex_lock(&input_mtx);
-    state.player1.y -= speed * input1.input_acc_ms;
-    state.player2.y -= speed * input2.input_acc_ms;
+    state.player1 = linear_move(state.player1, input1.input_acc_ms);
+    state.player2 = linear_move(state.player2, input2.input_acc_ms);
     input1.input_acc_ms = 0;
     input2.input_acc_ms = 0;
     pthread_mutex_unlock(&input_mtx);
+    state.ball = linear_move(state.ball, delta_time);
 
     struct packet packet = {
         .type = PACKET_STATE,
-        .size = 4 * 3 * 3,
-        .data = {.state = {
-            .player1 = {.id = room->clients[0]->id, .y = state.player1.y},
-            .player2 = {.id = room->clients[1]->id, .y = state.player2.y},
-            .ball = {.x = rand() % 100, .y = rand() % 100}
-        }}
+        .data.state = state
     };
 
     if (mm_room_broadcast(server, room, packet) == -1) {
-        LOG("pong: Someone disconnected");
+        LOG("Someone disconnected");
         return false;
     };
 
@@ -103,10 +92,10 @@ void *input_receive(void *room_p) {
                 if (packet.type == PACKET_INPUT) {
                     int id = room->clients[i]->id;
                     pthread_mutex_lock(&input_mtx);
-                    if (state.player1.id == id) {
+                    if (state.player_ids[0] == id) {
                         input1.input_acc_ms += packet.data.input.input_acc_ms;
                         LOGF("p1: %d", input1.input_acc_ms);
-                    } else if (state.player2.id == id) {
+                    } else if (state.player_ids[1] == id) {
                         input2.input_acc_ms += packet.data.input.input_acc_ms;
                         LOGF("p2: %d", input2.input_acc_ms);
                     }
@@ -122,21 +111,24 @@ void *input_receive(void *room_p) {
 
 void start_pong_game(struct room *room) {
     LOG("Starting pong");
-    state.player1.id = room->clients[0]->id;
-    state.player2.id = room->clients[1]->id;
+    server_t *server = room->clients[0]->server;
 
-    struct packet start_packet = {
-        .type = PACKET_PING,
-        .size = 1,
-        .data = {.ping = {
-            .dummy = 's'
-        }}
+    state.player_ids[0] = room->clients[0]->id;
+    state.player_ids[1] = room->clients[1]->id;
+    init_game(&state);
+
+    struct packet init_packet = {
+        .type = PACKET_INIT,
+        .data.state = state
     };
-    if (mm_room_broadcast(room->clients[0]->server, room, start_packet) == -1) {
-        ERROR("can't broadcast ping packet");
-        return;
+    for (int i = 0; i < ROOM_SIZE; i++) {
+        init_packet.data.state.own_id_index = i;
+        if (server_send_packet(server, *room->clients[i], init_packet) == -1) {
+            ERRORF("Failed to send init packet to %d", i);
+            return;
+        }
     }
-    LOG("broadcasted ping packet");
+    LOG("broadcasted init packet");
 
     struct run_every_args state_sender_re_args = {
         .func = send_state,

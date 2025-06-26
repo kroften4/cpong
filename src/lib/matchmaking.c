@@ -110,18 +110,18 @@ void handle_disband(struct room *room) {
 
 int mm_room_broadcast(server_t *server, struct room *room,
                       struct packet packet) {
-    struct binarr *barr = malloc(sizeof(struct binarr));
-    binarr_new(barr, 5 + packet.size);
-    packet_serialize(barr, packet);
+    struct binarr barr = {0};
+    binarr_new(&barr, MAX_PACKET_SIZE);
+    packet_serialize(&barr, packet);
     for (int i = 0; i < ROOM_SIZE; i++) {
         // TODO: handle disconnection
         client_t *receiver = room->clients[i];
-        if (server_send_packet_serialized(server, *receiver, *barr) == -1) {
+        if (server_send(server, *receiver, barr) == -1) {
             handle_disband(room);
             return -1;
         };
     }
-    binarr_destroy(*barr);
+    binarr_destroy(barr);
     return 0;
 }
 

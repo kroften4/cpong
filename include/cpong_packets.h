@@ -4,6 +4,7 @@
 #include <inttypes.h>
 #include "bin_array.h"
 #include "server.h"
+#include "cpong_logic.h"
 
 #define MAX_PACKET_SIZE 200
 #define PACKET_HEADER_SIZE 5
@@ -11,6 +12,7 @@
 enum cpong_packet {
     PACKET_PING,
     PACKET_INPUT,
+    PACKET_INIT,
     PACKET_STATE
 };
 
@@ -24,23 +26,7 @@ struct packet {
         struct input {
             int32_t input_acc_ms;
         } input;
-        struct state {
-            struct {
-                int32_t id;
-                int32_t y;
-                int32_t velocity;
-            } player1;
-            struct {
-                int32_t id;
-                int32_t y;
-                int32_t velocity;
-            } player2;
-            struct {
-                int32_t x;
-                int32_t y;
-                int32_t velocity;
-            } ball;
-        } state;
+        struct pong_state state;
     } data;
 };
 

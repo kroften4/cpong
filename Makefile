@@ -21,13 +21,13 @@ build/lib/%.o: src/lib/%.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
 bin/server: $(LIB_OBJ)
-	$(CC) $(CFLAGS) $(LFLAGS) $^ src/server.c -o $@
+	$(CC) $(CFLAGS) $^ src/server.c -o $@ $(LFLAGS)
 
 bin/client: $(LIB_OBJ)
-	$(CC) $(CFLAGS) $(LFLAGS) $^ src/client.c -o $@
+	$(CC) $(CFLAGS) $^ src/client.c -o $@ $(LFLAGS)
 
 bin/test: $(LIB_OBJ)
-	$(CC) $(CFLAGS) $^ test/binarr.c -o $@
+	$(CC) $(CFLAGS) $^ test/binarr.c -o $@ $(LFLAGS)
 
 clean:
 	rm -r bin/* build/*
