@@ -1,4 +1,5 @@
 #include <SDL3/SDL.h>
+#include <SDL3/SDL_blendmode.h>
 #include <SDL3/SDL_events.h>
 #include <SDL3/SDL_render.h>
 #include <stdbool.h>
@@ -11,6 +12,7 @@
 #include "log.h"
 #include "run_every.h"
 #include "render.h"
+#include "vector.h"
 
 #define FPS_CAP 1000
 #define MIN_FRAME_DURATION_MS 1000 / FPS_CAP
@@ -19,6 +21,7 @@
 #define MIN_NET_TICK_DURATION_MS 1000 / NET_TPS_CAP
 
 struct pong_state local_state;
+struct pong_state server_state;
 pthread_mutex_t state_mtx = PTHREAD_MUTEX_INITIALIZER;
 server_t server;
 
@@ -29,6 +32,7 @@ int server_state_receive(server_t server);
 
 void *server_state_receiver(void *server_p);
 
+void draw_state(struct pong_state state, SDL_Renderer *renderer);
 void draw_server_state(struct pong_state state, SDL_Renderer *renderer);
 
 void clear_screen(SDL_Renderer *renderer);
@@ -40,7 +44,8 @@ struct update_args {
 
 bool update(int delta_time, void *update_args);
 
-void update_local_state(struct pong_state *local, struct pong_state server);
+void update_local_state(struct pong_state *local, int delta_time, int input_direction);
+void server_snap(struct pong_state *local, struct pong_state server);
 
 bool network_update(int delta_time, void *dummy);
 
@@ -55,6 +60,7 @@ int main(int argc, char **argv) {
     SDL_Renderer *renderer;
     SDL_CreateWindowAndRenderer("Ponggers", 640, 480, 0, &window, &renderer);
     SDL_Event event;
+    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
 
     server.fd = connect_to_server(argv[1], argv[2]);
 
@@ -98,11 +104,36 @@ int main(int argc, char **argv) {
     return 0;
 }
 
-void update_local_state(struct pong_state *local, struct pong_state server) {
-    // TODO: interpolate ball and opp movement or smth
-    local->ball.pos = server.ball.pos;
-
+void update_local_state(struct pong_state *local, int delta_time, int input_direction) {
+    // TODO: interpolate opp movement
     // TODO: come up with a less stupid way to differentiate between me and opp
+
+    struct game_obj player1_upd = local->player1;
+    struct game_obj player2_upd = local->player2;
+    if (0 == local->own_id_index) {
+        player1_upd.velocity.y = input_direction;
+        player1_upd = linear_move(player1_upd, delta_time);
+    } else {
+        player2_upd.velocity.y = input_direction;
+        player2_upd = linear_move(player2_upd, delta_time);
+    }
+
+    // FIXME: Collisions happening 2 at a time make velocity flip 2 times
+    struct game_obj ball_upd = linear_move(local->ball, delta_time);
+    bool coll1 = ball_paddle_collide(local->player1, local->ball, player1_upd, &ball_upd, delta_time);
+    bool coll2 = ball_paddle_collide(local->player2, local->ball, player2_upd, &ball_upd, delta_time);
+    if (coll1 || coll2)
+        LOGF("collisions: %d %d", coll1, coll2);
+    local->ball = ball_upd;
+    local->player1 = player1_upd;
+    local->player2 = player2_upd;
+
+}
+
+void server_snap(struct pong_state *local, struct pong_state server) {
+    local->ball.pos = server.ball.pos;
+    local->ball.velocity = server.ball.velocity;
+
     if (0 != local->own_id_index) {
         local->player1.pos.y = server.player1.pos.y;
     } else {
@@ -119,10 +150,10 @@ int server_state_receive(server_t server) {
     }
     if (packet.type == PACKET_STATE) {
         pthread_mutex_lock(&state_mtx);
-        update_local_state(&local_state, packet.data.state);
+        server_state = packet.data.state;
         pthread_mutex_unlock(&state_mtx);
         LOG("received server state");
-        print_state(packet.data.state);
+        print_state(server_state);
         LOG("local state");
         print_state(local_state);
     } else {
@@ -155,14 +186,25 @@ bool network_update(int delta_time, void *dummy) {
         }
     };
     input_accumulator = 0;
+    pthread_mutex_lock(&state_mtx);
+    server_snap(&local_state, server_state);
+    pthread_mutex_unlock(&state_mtx);
     pthread_mutex_unlock(&input_acc_mtx);
     int b_sent = client_send(server, packet);
     LOGF("sent %d, input %d", b_sent, packet.data.input.input_acc_ms);
     return true;
 }
 
-void draw_server_state(struct pong_state state, SDL_Renderer *renderer) {
-    SDL_SetRenderDrawColor(renderer, 255, 0, 0, 50);
+void draw_server_state(struct pong_state server_state, SDL_Renderer *renderer) {
+    server_state.player1.pos.x = local_state.player1.pos.x;
+    server_state.player1.size = local_state.player1.size;
+    server_state.player2.pos.x = local_state.player2.pos.x;
+    server_state.player2.size = local_state.player2.size;
+    SDL_SetRenderDrawColor(renderer, 255, 0, 0, 180);
+    draw_state(server_state, renderer);
+}
+
+void draw_state(struct pong_state state, SDL_Renderer *renderer) {
     draw_obj(state.player1, renderer);
     draw_obj(state.player2, renderer);
     draw_obj(state.ball, renderer);
@@ -187,12 +229,23 @@ bool update(int delta_time, void *update_args_p) {
     bool up = keyboard[SDL_SCANCODE_UP] || keyboard[SDL_SCANCODE_W];
     bool down = keyboard[SDL_SCANCODE_DOWN] || keyboard[SDL_SCANCODE_S];
 
+    int input_direction = (down - up);
+
     pthread_mutex_lock(&input_acc_mtx);
-    input_accumulator += (up - down) * delta_time;
+    input_accumulator += input_direction * delta_time;
     pthread_mutex_unlock(&input_acc_mtx);
 
+    pthread_mutex_lock(&state_mtx);
+    update_local_state(&local_state, delta_time, input_direction);
+
     clear_screen(renderer);
-    draw_server_state(local_state, renderer);
+    draw_server_state(server_state, renderer);
+
+    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+    draw_state(local_state, renderer);
+
+    pthread_mutex_unlock(&state_mtx);
+
     SDL_RenderPresent(renderer);
 
     return true;

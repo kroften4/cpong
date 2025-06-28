@@ -47,12 +47,22 @@ bool send_state(int delta_time, void *room_p) {
     server_t *server = room->clients[0]->server;
 
     pthread_mutex_lock(&input_mtx);
-    state.player1 = linear_move(state.player1, input1.input_acc_ms);
-    state.player2 = linear_move(state.player2, input2.input_acc_ms);
+    struct game_obj player1_upd = linear_move(state.player1, input1.input_acc_ms);
+    struct game_obj player2_upd = linear_move(state.player2, input2.input_acc_ms);
     input1.input_acc_ms = 0;
     input2.input_acc_ms = 0;
     pthread_mutex_unlock(&input_mtx);
-    state.ball = linear_move(state.ball, delta_time);
+
+    struct game_obj ball_upd = linear_move(state.ball, delta_time);
+    bool coll1 = ball_paddle_collide(state.player1, state.ball, player1_upd, &ball_upd, delta_time);
+    bool coll2 = ball_paddle_collide(state.player2, state.ball, player2_upd, &ball_upd, delta_time);
+    struct wall wall = {.up = state.box_size.y, .down = 0, .left = 0, .right = state.box_size.x};
+    bool coll_wall = ball_wall_collision(wall, state.ball, &ball_upd, delta_time);
+    if (coll1 || coll2 || coll_wall)
+        LOGF("collisions: %d %d %d", coll1, coll2, coll_wall);
+    state.ball = ball_upd;
+    state.player1 = player1_upd;
+    state.player2 = player2_upd;
 
     struct packet packet = {
         .type = PACKET_STATE,
