@@ -57,7 +57,9 @@ bool send_state(int delta_time, void *room_p) {
     bool coll1 = ball_paddle_collide(state.player1, state.ball, player1_upd, &ball_upd, delta_time);
     bool coll2 = ball_paddle_collide(state.player2, state.ball, player2_upd, &ball_upd, delta_time);
     struct wall wall = {.up = state.box_size.y, .down = 0, .left = 0, .right = state.box_size.x};
-    bool coll_wall = ball_wall_collision(wall, state.ball, &ball_upd, delta_time);
+    bool coll_wall = false;
+    // if (!coll1 && !coll2)
+    coll_wall = ball_wall_collision(wall, state.ball, &ball_upd, delta_time);
     if (coll1 || coll2 || coll_wall)
         LOGF("collisions: %d %d %d", coll1, coll2, coll_wall);
     state.ball = ball_upd;
@@ -139,6 +141,7 @@ void start_pong_game(struct room *room) {
         }
     }
     LOG("broadcasted init packet");
+    print_state(init_packet.data.state);
 
     struct run_every_args state_sender_re_args = {
         .func = send_state,

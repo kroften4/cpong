@@ -27,43 +27,43 @@ struct binarr *packet_serialize(struct binarr *barr, struct packet packet) {
 
         binarr_append_i32_n(barr, packet.data.state.own_id_index);
 
-        binarr_append_i32_n(barr, packet.data.state.player1.pos.x);
-        binarr_append_i32_n(barr, packet.data.state.player1.pos.y);
-        binarr_append_i32_n(barr, packet.data.state.player1.velocity.x);
-        binarr_append_i32_n(barr, packet.data.state.player1.velocity.y);
-        binarr_append_i32_n(barr, packet.data.state.player1.size.x);
-        binarr_append_i32_n(barr, packet.data.state.player1.size.y);
+        binarr_append_float_n(barr, packet.data.state.player1.pos.x);
+        binarr_append_float_n(barr, packet.data.state.player1.pos.y);
+        binarr_append_float_n(barr, packet.data.state.player1.velocity.x);
+        binarr_append_float_n(barr, packet.data.state.player1.velocity.y);
+        binarr_append_float_n(barr, packet.data.state.player1.size.x);
+        binarr_append_float_n(barr, packet.data.state.player1.size.y);
 
-        binarr_append_i32_n(barr, packet.data.state.player2.pos.x);
-        binarr_append_i32_n(barr, packet.data.state.player2.pos.y);
-        binarr_append_i32_n(barr, packet.data.state.player2.velocity.x);
-        binarr_append_i32_n(barr, packet.data.state.player2.velocity.y);
-        binarr_append_i32_n(barr, packet.data.state.player2.size.x);
-        binarr_append_i32_n(barr, packet.data.state.player2.size.y);
+        binarr_append_float_n(barr, packet.data.state.player2.pos.x);
+        binarr_append_float_n(barr, packet.data.state.player2.pos.y);
+        binarr_append_float_n(barr, packet.data.state.player2.velocity.x);
+        binarr_append_float_n(barr, packet.data.state.player2.velocity.y);
+        binarr_append_float_n(barr, packet.data.state.player2.size.x);
+        binarr_append_float_n(barr, packet.data.state.player2.size.y);
 
-        binarr_append_i32_n(barr, packet.data.state.ball.pos.x);
-        binarr_append_i32_n(barr, packet.data.state.ball.pos.y);
-        binarr_append_i32_n(barr, packet.data.state.ball.velocity.x);
-        binarr_append_i32_n(barr, packet.data.state.ball.velocity.y);
-        binarr_append_i32_n(barr, packet.data.state.ball.size.x);
-        binarr_append_i32_n(barr, packet.data.state.ball.size.y);
+        binarr_append_float_n(barr, packet.data.state.ball.pos.x);
+        binarr_append_float_n(barr, packet.data.state.ball.pos.y);
+        binarr_append_float_n(barr, packet.data.state.ball.velocity.x);
+        binarr_append_float_n(barr, packet.data.state.ball.velocity.y);
+        binarr_append_float_n(barr, packet.data.state.ball.size.x);
+        binarr_append_float_n(barr, packet.data.state.ball.size.y);
 
-        binarr_append_i32_n(barr, packet.data.state.box_size.x);
-        binarr_append_i32_n(barr, packet.data.state.box_size.y);
+        binarr_append_float_n(barr, packet.data.state.box_size.x);
+        binarr_append_float_n(barr, packet.data.state.box_size.y);
         break;
     case PACKET_STATE:
-        binarr_append_i32_n(barr, packet.data.state.player1.pos.y);
-        binarr_append_i32_n(barr, packet.data.state.player1.velocity.x);
-        binarr_append_i32_n(barr, packet.data.state.player1.velocity.y);
+        binarr_append_float_n(barr, packet.data.state.player1.pos.y);
+        binarr_append_float_n(barr, packet.data.state.player1.velocity.x);
+        binarr_append_float_n(barr, packet.data.state.player1.velocity.y);
 
-        binarr_append_i32_n(barr, packet.data.state.player2.pos.y);
-        binarr_append_i32_n(barr, packet.data.state.player2.velocity.x);
-        binarr_append_i32_n(barr, packet.data.state.player2.velocity.y);
+        binarr_append_float_n(barr, packet.data.state.player2.pos.y);
+        binarr_append_float_n(barr, packet.data.state.player2.velocity.x);
+        binarr_append_float_n(barr, packet.data.state.player2.velocity.y);
 
-        binarr_append_i32_n(barr, packet.data.state.ball.pos.x);
-        binarr_append_i32_n(barr, packet.data.state.ball.pos.y);
-        binarr_append_i32_n(barr, packet.data.state.ball.velocity.x);
-        binarr_append_i32_n(barr, packet.data.state.ball.velocity.y);
+        binarr_append_float_n(barr, packet.data.state.ball.pos.x);
+        binarr_append_float_n(barr, packet.data.state.ball.pos.y);
+        binarr_append_float_n(barr, packet.data.state.ball.velocity.x);
+        binarr_append_float_n(barr, packet.data.state.ball.velocity.y);
         break;
     default:
         return NULL;
@@ -92,43 +92,43 @@ struct packet *packet_deserialize(struct packet *packet, struct binarr *barr) {
 
         packet->data.state.own_id_index = binarr_read_i32_n(barr);
 
-        packet->data.state.player1.pos.x = binarr_read_i32_n(barr);
-        packet->data.state.player1.pos.y = binarr_read_i32_n(barr);
-        packet->data.state.player1.velocity.x = binarr_read_i32_n(barr);
-        packet->data.state.player1.velocity.y = binarr_read_i32_n(barr);
-        packet->data.state.player1.size.x = binarr_read_i32_n(barr);
-        packet->data.state.player1.size.y = binarr_read_i32_n(barr);
+        packet->data.state.player1.pos.x = binarr_read_float_n(barr);
+        packet->data.state.player1.pos.y = binarr_read_float_n(barr);
+        packet->data.state.player1.velocity.x = binarr_read_float_n(barr);
+        packet->data.state.player1.velocity.y = binarr_read_float_n(barr);
+        packet->data.state.player1.size.x = binarr_read_float_n(barr);
+        packet->data.state.player1.size.y = binarr_read_float_n(barr);
 
-        packet->data.state.player2.pos.x = binarr_read_i32_n(barr);
-        packet->data.state.player2.pos.y = binarr_read_i32_n(barr);
-        packet->data.state.player2.velocity.x = binarr_read_i32_n(barr);
-        packet->data.state.player2.velocity.y = binarr_read_i32_n(barr);
-        packet->data.state.player2.size.x = binarr_read_i32_n(barr);
-        packet->data.state.player2.size.y = binarr_read_i32_n(barr);
+        packet->data.state.player2.pos.x = binarr_read_float_n(barr);
+        packet->data.state.player2.pos.y = binarr_read_float_n(barr);
+        packet->data.state.player2.velocity.x = binarr_read_float_n(barr);
+        packet->data.state.player2.velocity.y = binarr_read_float_n(barr);
+        packet->data.state.player2.size.x = binarr_read_float_n(barr);
+        packet->data.state.player2.size.y = binarr_read_float_n(barr);
 
-        packet->data.state.ball.pos.x = binarr_read_i32_n(barr);
-        packet->data.state.ball.pos.y = binarr_read_i32_n(barr);
-        packet->data.state.ball.velocity.x = binarr_read_i32_n(barr);
-        packet->data.state.ball.velocity.y = binarr_read_i32_n(barr);
-        packet->data.state.ball.size.x = binarr_read_i32_n(barr);
-        packet->data.state.ball.size.y = binarr_read_i32_n(barr);
+        packet->data.state.ball.pos.x = binarr_read_float_n(barr);
+        packet->data.state.ball.pos.y = binarr_read_float_n(barr);
+        packet->data.state.ball.velocity.x = binarr_read_float_n(barr);
+        packet->data.state.ball.velocity.y = binarr_read_float_n(barr);
+        packet->data.state.ball.size.x = binarr_read_float_n(barr);
+        packet->data.state.ball.size.y = binarr_read_float_n(barr);
 
-        packet->data.state.box_size.x = binarr_read_i32_n(barr);
-        packet->data.state.box_size.y = binarr_read_i32_n(barr);
+        packet->data.state.box_size.x = binarr_read_float_n(barr);
+        packet->data.state.box_size.y = binarr_read_float_n(barr);
         break;
     case PACKET_STATE:
-        packet->data.state.player1.pos.y = binarr_read_i32_n(barr);
-        packet->data.state.player1.velocity.x = binarr_read_i32_n(barr);
-        packet->data.state.player1.velocity.y = binarr_read_i32_n(barr);
+        packet->data.state.player1.pos.y = binarr_read_float_n(barr);
+        packet->data.state.player1.velocity.x = binarr_read_float_n(barr);
+        packet->data.state.player1.velocity.y = binarr_read_float_n(barr);
 
-        packet->data.state.player2.pos.y = binarr_read_i32_n(barr);
-        packet->data.state.player2.velocity.x = binarr_read_i32_n(barr);
-        packet->data.state.player2.velocity.y = binarr_read_i32_n(barr);
+        packet->data.state.player2.pos.y = binarr_read_float_n(barr);
+        packet->data.state.player2.velocity.x = binarr_read_float_n(barr);
+        packet->data.state.player2.velocity.y = binarr_read_float_n(barr);
 
-        packet->data.state.ball.pos.x = binarr_read_i32_n(barr);
-        packet->data.state.ball.pos.y = binarr_read_i32_n(barr);
-        packet->data.state.ball.velocity.x = binarr_read_i32_n(barr);
-        packet->data.state.ball.velocity.y = binarr_read_i32_n(barr);
+        packet->data.state.ball.pos.x = binarr_read_float_n(barr);
+        packet->data.state.ball.pos.y = binarr_read_float_n(barr);
+        packet->data.state.ball.velocity.x = binarr_read_float_n(barr);
+        packet->data.state.ball.velocity.y = binarr_read_float_n(barr);
         break;
     default:
         return NULL;

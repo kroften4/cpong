@@ -111,19 +111,18 @@ void update_local_state(struct pong_state *local, int delta_time, int input_dire
     struct game_obj player1_upd = local->player1;
     struct game_obj player2_upd = local->player2;
     if (0 == local->own_id_index) {
-        player1_upd.velocity.y = input_direction;
+        player1_upd.velocity.y = input_direction * 0.5;
         player1_upd = linear_move(player1_upd, delta_time);
     } else {
-        player2_upd.velocity.y = input_direction;
+        player2_upd.velocity.y = input_direction * 0.5;
         player2_upd = linear_move(player2_upd, delta_time);
     }
 
-    // FIXME: Collisions happening 2 at a time make velocity flip 2 times
     struct game_obj ball_upd = linear_move(local->ball, delta_time);
     bool coll1 = ball_paddle_collide(local->player1, local->ball, player1_upd, &ball_upd, delta_time);
     bool coll2 = ball_paddle_collide(local->player2, local->ball, player2_upd, &ball_upd, delta_time);
-    if (coll1 || coll2)
-        LOGF("collisions: %d %d", coll1, coll2);
+    // if (coll1 || coll2)
+    //     LOGF("collisions: %d %d", coll1, coll2);
     local->ball = ball_upd;
     local->player1 = player1_upd;
     local->player2 = player2_upd;
@@ -155,6 +154,9 @@ int server_state_receive(server_t server) {
         LOG("received server state");
         print_state(server_state);
         LOG("local state");
+        pthread_mutex_lock(&state_mtx);
+        server_snap(&local_state, server_state);
+        pthread_mutex_unlock(&state_mtx);
         print_state(local_state);
     } else {
         WARNF("Unexpected packet: %d", packet.type);
@@ -186,9 +188,6 @@ bool network_update(int delta_time, void *dummy) {
         }
     };
     input_accumulator = 0;
-    pthread_mutex_lock(&state_mtx);
-    server_snap(&local_state, server_state);
-    pthread_mutex_unlock(&state_mtx);
     pthread_mutex_unlock(&input_acc_mtx);
     int b_sent = client_send(server, packet);
     LOGF("sent %d, input %d", b_sent, packet.data.input.input_acc_ms);
@@ -200,6 +199,7 @@ void draw_server_state(struct pong_state server_state, SDL_Renderer *renderer) {
     server_state.player1.size = local_state.player1.size;
     server_state.player2.pos.x = local_state.player2.pos.x;
     server_state.player2.size = local_state.player2.size;
+    server_state.ball.size = local_state.ball.size;
     SDL_SetRenderDrawColor(renderer, 255, 0, 0, 180);
     draw_state(server_state, renderer);
 }
