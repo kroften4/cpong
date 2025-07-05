@@ -25,9 +25,10 @@ void init_game(struct pong_state *state);
 
 void print_state(struct pong_state state);
 
-bool ball_paddle_collide(struct game_obj paddle, struct game_obj ball,
-                         struct game_obj paddle_upd,
-                         struct game_obj *ball_upd, int delta_time);
+float ball_paddle_collide(struct game_obj paddle, struct game_obj ball,
+                          struct game_obj paddle_upd,
+                          struct game_obj *ball_upd, float *toi,
+                          struct vector *normal);
 
 struct wall {
     int up;
@@ -36,8 +37,20 @@ struct wall {
     int right;
 };
 
-bool ball_wall_collision(struct wall wall, struct game_obj ball,
-                         struct game_obj *ball_upd, int delta_time);
+bool ball_wall_collide(struct wall wall, struct game_obj ball, 
+                       struct game_obj *ball_upd, float *toi,
+                       struct vector *normal);
+
+struct AABB_boundaries {
+    float up;
+    float down;
+    float left;
+    float right;
+};
+
+struct AABB_boundaries AABB_get_boundaries(struct game_obj obj);
+
+bool AABB_is_overlapping(struct game_obj first, struct game_obj second);
 
 #endif
 

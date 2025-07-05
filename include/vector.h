@@ -10,5 +10,7 @@ struct vector vector_add(struct vector first, struct vector second);
 
 struct vector vector_multiply(struct vector vec, float scalar);
 
+struct vector reflect_orthogonal(struct vector vec, struct vector normal_orthogonal);
+
 #endif
 

@@ -12,3 +12,10 @@ struct vector vector_multiply(struct vector vec, float scalar) {
     return vec;
 }
 
+struct vector reflect_orthogonal(struct vector vec, struct vector normal_orthogonal) {
+    if (normal_orthogonal.x != 0)
+        vec.y = -vec.y;
+    else
+        vec.x = -vec.x;
+    return vec;
+}

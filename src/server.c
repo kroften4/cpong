@@ -10,7 +10,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#define TICK_CAP 10
+#define TICK_CAP 20
 #define MIN_TICK_DURATION_MS 1000 / TICK_CAP
 
 static struct pong_state state;
@@ -54,12 +54,12 @@ bool send_state(int delta_time, void *room_p) {
     pthread_mutex_unlock(&input_mtx);
 
     struct game_obj ball_upd = linear_move(state.ball, delta_time);
-    bool coll1 = ball_paddle_collide(state.player1, state.ball, player1_upd, &ball_upd, delta_time);
-    bool coll2 = ball_paddle_collide(state.player2, state.ball, player2_upd, &ball_upd, delta_time);
+    bool coll1 = ball_paddle_toi(state.player1, state.ball, player1_upd, &ball_upd);
+    bool coll2 = ball_paddle_toi(state.player2, state.ball, player2_upd, &ball_upd);
     struct wall wall = {.up = state.box_size.y, .down = 0, .left = 0, .right = state.box_size.x};
     bool coll_wall = false;
     // if (!coll1 && !coll2)
-    coll_wall = ball_wall_collision(wall, state.ball, &ball_upd, delta_time);
+    coll_wall = ball_wall_collide(wall, state.ball, &ball_upd, delta_time);
     if (coll1 || coll2 || coll_wall)
         LOGF("collisions: %d %d %d", coll1, coll2, coll_wall);
     state.ball = ball_upd;
