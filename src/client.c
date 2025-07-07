@@ -118,11 +118,10 @@ void update_local_state(struct pong_state *local, int delta_time, int input_dire
         player2_upd = linear_move(player2_upd, delta_time);
     }
 
-    struct game_obj ball_upd = linear_move(local->ball, delta_time);
-    bool coll1 = ball_paddle_collide(local->player1, local->ball, player1_upd, &ball_upd, delta_time);
-    bool coll2 = ball_paddle_collide(local->player2, local->ball, player2_upd, &ball_upd, delta_time);
-    // if (coll1 || coll2)
-    //     LOGF("collisions: %d %d", coll1, coll2);
+    struct wall wall = {.up = local->box_size.y, .down = 0, .left = 0, .right = local->box_size.x};
+    struct game_obj ball_upd = {0};
+    ball_advance(wall, local->player1, player1_upd, local->player2, player2_upd, local->ball, &ball_upd, delta_time);
+
     local->ball = ball_upd;
     local->player1 = player1_upd;
     local->player2 = player2_upd;

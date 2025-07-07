@@ -53,15 +53,10 @@ bool send_state(int delta_time, void *room_p) {
     input2.input_acc_ms = 0;
     pthread_mutex_unlock(&input_mtx);
 
-    struct game_obj ball_upd = linear_move(state.ball, delta_time);
-    bool coll1 = ball_paddle_toi(state.player1, state.ball, player1_upd, &ball_upd);
-    bool coll2 = ball_paddle_toi(state.player2, state.ball, player2_upd, &ball_upd);
     struct wall wall = {.up = state.box_size.y, .down = 0, .left = 0, .right = state.box_size.x};
-    bool coll_wall = false;
-    // if (!coll1 && !coll2)
-    coll_wall = ball_wall_collide(wall, state.ball, &ball_upd, delta_time);
-    if (coll1 || coll2 || coll_wall)
-        LOGF("collisions: %d %d %d", coll1, coll2, coll_wall);
+    struct game_obj ball_upd = {0};
+    ball_advance(wall, state.player1, player1_upd, state.player2, player2_upd, state.ball, &ball_upd, delta_time);
+
     state.ball = ball_upd;
     state.player1 = player1_upd;
     state.player2 = player2_upd;

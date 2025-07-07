@@ -1,7 +1,7 @@
 CC = gcc
 CFLAGS = -Iinclude
 CFLAGS += -Wall -Wextra -Wpedantic
-LFLAGS = -lSDL3
+LFLAGS = -lSDL3 -lm
 
 ifdef DEBUG
 	CFLAGS += -ggdb -O0
