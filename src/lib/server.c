@@ -2,6 +2,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <sys/socket.h>
+#include <sys/types.h>
 #include <unistd.h>
 #include <pthread.h>
 #include <stdlib.h>
@@ -85,8 +86,20 @@ void server_handle_disconnection(server_t *server, client_t client) {
     pthread_mutex_unlock(&server->clients->mutex);
 }
 
+ssize_t sendall(int fd, const int8_t *buf, size_t n, int flags) {
+    size_t sent = 0;
+    int res;
+    while (sent < n) {
+        res = send(fd, buf + sent, n - sent, flags);
+        if (res == -1)
+            return res;
+        sent += res;
+    }
+    return sent;
+}
+
 int server_send(server_t *server, client_t client, struct binarr barr) {
-    if (send(client.fd, barr.buf, barr.size, MSG_NOSIGNAL) == -1) {
+    if (sendall(client.fd, barr.buf, barr.size, MSG_NOSIGNAL) == -1) {
         server_handle_disconnection(server, client);
         return -1;
     }

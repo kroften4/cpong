@@ -9,6 +9,13 @@
 #define MAX_PACKET_SIZE 200
 #define PACKET_HEADER_SIZE 5
 
+/*
+ * CPONG protocol
+ * Packet types:
+ * PACKET_PING - unused
+ * PACKET_INIT - Sent when a match is found and on scoring; contains initial information about game objects, field size, etc.
+ * PACKET_STATE - Sent every server tick; contains info about game objects (position, velocity), etc.
+ */
 enum cpong_packet {
     PACKET_PING,
     PACKET_INPUT,
@@ -27,14 +34,13 @@ struct packet {
             int32_t input_acc_ms;
         } input;
         struct pong_state state;
+        uint8_t scored_player_index;
     } data;
 };
 
 struct binarr *packet_serialize(struct binarr *barr, struct packet packet);
 
 struct packet *packet_deserialize(struct packet *packet, struct binarr *barr);
-
-int server_send_packet_serialized(server_t *server, client_t client, struct binarr barr);
 
 int server_send_packet(server_t *server, client_t target, struct packet packet);
 

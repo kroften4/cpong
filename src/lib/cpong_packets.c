@@ -1,9 +1,12 @@
 #include <inttypes.h>
 #include <arpa/inet.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <string.h>
 #include <sys/socket.h>
 #include <stdio.h>
 #include <errno.h>
+#include <sys/types.h>
 #include "ts_queue.h"
 #include "bin_array.h"
 #include "server.h"
@@ -26,6 +29,9 @@ struct binarr *packet_serialize(struct binarr *barr, struct packet packet) {
         binarr_append_i32_n(barr, packet.data.state.player_ids[1]);
 
         binarr_append_i32_n(barr, packet.data.state.own_id_index);
+
+        binarr_append_i32_n(barr, packet.data.state.score[0]);
+        binarr_append_i32_n(barr, packet.data.state.score[1]);
 
         binarr_append_float_n(barr, packet.data.state.player1.pos.x);
         binarr_append_float_n(barr, packet.data.state.player1.pos.y);
@@ -92,6 +98,9 @@ struct packet *packet_deserialize(struct packet *packet, struct binarr *barr) {
 
         packet->data.state.own_id_index = binarr_read_i32_n(barr);
 
+        packet->data.state.score[0] = binarr_read_i32_n(barr);
+        packet->data.state.score[1] = binarr_read_i32_n(barr);
+
         packet->data.state.player1.pos.x = binarr_read_float_n(barr);
         packet->data.state.player1.pos.y = binarr_read_float_n(barr);
         packet->data.state.player1.velocity.x = binarr_read_float_n(barr);
@@ -136,13 +145,6 @@ struct packet *packet_deserialize(struct packet *packet, struct binarr *barr) {
     return packet;
 }
 
-int server_send_packet_serialized(server_t *server, client_t client, struct binarr barr) {
-    if (server_send(server, client, barr) == -1) {
-        return -1;
-    }
-    return 0;
-}
-
 int server_send_packet(server_t *server, client_t target, struct packet packet) {
     struct binarr barr = {0};
     uint64_t capacity = MAX_PACKET_SIZE;
@@ -152,7 +154,7 @@ int server_send_packet(server_t *server, client_t target, struct packet packet) 
         binarr_destroy(barr);
         return -1;
     }
-    if (server_send_packet_serialized(server, target, barr) == -1) {
+    if (server_send(server, target, barr) == -1) {
         binarr_destroy(barr);
         return -1;
     }
@@ -172,7 +174,7 @@ int server_broadcast(server_t *server, struct packet packet) {
     }
     for (struct ts_queue_node *p = server->clients->head; p != NULL; p = p->next) {
         client_t *client = p->data;
-        if (server_send_packet_serialized(server, *client, barr) == -1) {
+        if (server_send(server, *client, barr) == -1) {
             // TODO: do i need to signal that some clients disconnected?
             continue;
         }
@@ -192,7 +194,7 @@ int client_send(server_t server, struct packet packet) {
         return -1;
     }
     // TODO: write proper shit for client
-    int b_sent = send(server.fd, barr.buf, barr.size, 0);
+    int b_sent = sendall(server.fd, barr.buf, barr.size, 0);
     if (b_sent == -1) {
         ERRORF("client_send: %d %s", server.fd, strerror(errno));
     };
@@ -201,11 +203,23 @@ int client_send(server_t server, struct packet packet) {
     return b_sent;
 }
 
+ssize_t recvall(int fd, int8_t *buf, size_t n, int flags) {
+    size_t received = 0;
+    int res;
+    while (received < n) {
+        res = recv(fd, buf + received, n - received, flags);
+        if (res <= 0)
+            return res;
+        received += res;
+    }
+    return received;
+}
+
 int recv_packet(int fd, struct packet *result) {
     struct binarr barr = {0};
     size_t capacity = MAX_PACKET_SIZE;
     binarr_new(&barr, capacity);
-    ssize_t h_size = recv(fd, barr.buf, PACKET_HEADER_SIZE, 0);
+    ssize_t h_size = recvall(fd, barr.buf, PACKET_HEADER_SIZE, 0);
     barr.size += h_size;
     if (h_size <= 0) {
         perror("header recv");
@@ -213,7 +227,7 @@ int recv_packet(int fd, struct packet *result) {
     }
     binarr_read_i8(&barr);
     int32_t packet_size = binarr_read_i32_n(&barr);
-    ssize_t d_size = recv(fd, barr.buf + barr.size, packet_size, 0);
+    ssize_t d_size = recvall(fd, barr.buf + barr.size, packet_size, 0);
     barr.index = 0;
     if (d_size <= 0) {
         perror("data recv");

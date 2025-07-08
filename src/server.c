@@ -24,6 +24,8 @@ void on_disband(struct room *room) {
     LOGF("disbanded room %d", room->id);
 }
 
+bool send_score(server_t *server, struct room *room, int scored_player_index);
+
 int main(int argc, char **argv) {
     if (argc != 2) {
         ERRORF("Usage: %s <port>", argv[0]);
@@ -56,13 +58,21 @@ bool send_state(int delta_time, void *room_p) {
     struct wall wall = {.up = state.box_size.y, .down = 0, .left = 0, .right = state.box_size.x};
     struct game_obj ball_upd = {0};
     ball_advance(wall, state.player1, player1_upd, state.player2, player2_upd, state.ball, &ball_upd, delta_time);
+    int scored_index = ball_score_collide(wall, state.ball, delta_time);
 
     state.ball = ball_upd;
     state.player1 = player1_upd;
     state.player2 = player2_upd;
 
+    enum cpong_packet packet_type = PACKET_STATE;
+    if (scored_index != -1) {
+        init_game(&state);
+        state.score[scored_index]++;
+        packet_type = PACKET_INIT;
+    }
+
     struct packet packet = {
-        .type = PACKET_STATE,
+        .type = packet_type,
         .data.state = state
     };
 
@@ -122,6 +132,8 @@ void start_pong_game(struct room *room) {
 
     state.player_ids[0] = room->clients[0]->id;
     state.player_ids[1] = room->clients[1]->id;
+    state.score[0] = 0;
+    state.score[1] = 0;
     init_game(&state);
 
     struct packet init_packet = {

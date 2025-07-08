@@ -169,15 +169,25 @@ bool ball_paddle_collide(struct game_obj paddle, struct game_obj ball,
 bool ball_wall_collide(struct wall wall, struct game_obj ball,
                        struct game_obj ball_next,
                        struct coll_info *coll_info) {
-    struct coll_info collisions[4] = {0};
+    struct coll_info collisions[2] = {0};
     ball_y_collide(wall.up, ball, ball_next, &collisions[0]);
     ball_y_collide(wall.down, ball, ball_next, &collisions[1]);
-    ball_x_collide(wall.left, ball, ball_next, &collisions[2]);
-    ball_x_collide(wall.right, ball, ball_next, &collisions[3]);
-    if (!get_first_collision(collisions, 4, coll_info))
+    if (!get_first_collision(collisions, 2, coll_info))
         return false;
     LOG("collision with wall");
     return true;
+}
+
+int ball_score_collide(struct wall wall, struct game_obj ball,
+                       int delta_time) {
+    struct game_obj ball_next = linear_move(ball, delta_time);
+    struct coll_info coll_info = {0};
+    int scored_index = -1;
+    if (ball_x_collide(wall.left, ball, ball_next, &coll_info))
+        scored_index = 0;
+    if (ball_x_collide(wall.right, ball, ball_next, &coll_info))
+        scored_index = 1;
+    return scored_index;
 }
 
 int min_idx(float arr[], size_t size) {

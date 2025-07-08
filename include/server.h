@@ -2,6 +2,7 @@
 #define __SERVER_H__
 
 #include "bin_array.h"
+#include <sys/types.h>
 
 /*
  * Backlog for `listen` call
@@ -20,6 +21,8 @@ typedef struct {
 } client_t;
 
 void __print_queue(struct ts_queue *q);
+
+ssize_t sendall(int fd, const int8_t *buf, size_t n, int flags);
 
 int server_send(server_t *server, client_t client, struct binarr barr);
 

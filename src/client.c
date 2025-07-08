@@ -32,7 +32,7 @@ int server_state_receive(server_t server);
 
 void *server_state_receiver(void *server_p);
 
-void draw_state(struct pong_state state, SDL_Renderer *renderer);
+void draw_state(struct pong_state state, SDL_Renderer *renderer, SDL_Color color);
 void draw_server_state(struct pong_state state, SDL_Renderer *renderer);
 
 void clear_screen(SDL_Renderer *renderer);
@@ -75,6 +75,8 @@ int main(int argc, char **argv) {
              state.player_ids[state.own_id_index]);
     }
     local_state = init_packet.data.state;
+    local_state.score[0] = 0;
+    local_state.score[1] = 0;
     LOG("got init state");
     print_state(local_state);
 
@@ -125,7 +127,6 @@ void update_local_state(struct pong_state *local, int delta_time, int input_dire
     local->ball = ball_upd;
     local->player1 = player1_upd;
     local->player2 = player2_upd;
-
 }
 
 void server_snap(struct pong_state *local, struct pong_state server) {
@@ -146,18 +147,29 @@ int server_state_receive(server_t server) {
         LOG("Couldn't recv from the server");
         return -1;
     }
-    if (packet.type == PACKET_STATE) {
+    switch (packet.type) {
+    case PACKET_STATE:
         pthread_mutex_lock(&state_mtx);
         server_state = packet.data.state;
-        pthread_mutex_unlock(&state_mtx);
         LOG("received server state");
         print_state(server_state);
         LOG("local state");
-        pthread_mutex_lock(&state_mtx);
         server_snap(&local_state, server_state);
-        pthread_mutex_unlock(&state_mtx);
         print_state(local_state);
-    } else {
+        pthread_mutex_unlock(&state_mtx);
+        break;
+    case PACKET_INIT:
+        pthread_mutex_lock(&state_mtx);
+        int own_index_save = local_state.own_id_index;
+        local_state = packet.data.state;
+        local_state.own_id_index = own_index_save;
+        pthread_mutex_unlock(&state_mtx);
+
+        pthread_mutex_lock(&input_acc_mtx);
+        input_accumulator = 0;
+        pthread_mutex_unlock(&input_acc_mtx);
+        break;
+    default:
         WARNF("Unexpected packet: %d", packet.type);
         return -1;
     }
@@ -200,13 +212,15 @@ void draw_server_state(struct pong_state server_state, SDL_Renderer *renderer) {
     server_state.player2.size = local_state.player2.size;
     server_state.ball.size = local_state.ball.size;
     SDL_SetRenderDrawColor(renderer, 255, 0, 0, 180);
-    draw_state(server_state, renderer);
+    SDL_Color color = {255, 0, 0, 255};
+    draw_state(server_state, renderer, color);
 }
 
-void draw_state(struct pong_state state, SDL_Renderer *renderer) {
-    draw_obj(state.player1, renderer);
-    draw_obj(state.player2, renderer);
-    draw_obj(state.ball, renderer);
+void draw_state(struct pong_state state, SDL_Renderer *renderer, SDL_Color color) {
+    draw_obj(state.player1, renderer, color);
+    draw_obj(state.player2, renderer, color);
+    draw_obj(state.ball, renderer, color);
+    draw_score(state, renderer, (SDL_Color){0, 0, 255, 255});
 }
 
 void clear_screen(SDL_Renderer *renderer) {
@@ -240,8 +254,8 @@ bool update(int delta_time, void *update_args_p) {
     clear_screen(renderer);
     draw_server_state(server_state, renderer);
 
-    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
-    draw_state(local_state, renderer);
+    SDL_Color state_color = {0, 0, 0, 255};
+    draw_state(local_state, renderer, state_color);
 
     pthread_mutex_unlock(&state_mtx);
 
