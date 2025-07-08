@@ -11,7 +11,7 @@ debian), but for fedora you can just do:
 sudo dnf install SDL3-devel
 ```
 
-- Compile the binaries with `make`
+- Compile the binaries with `make` (make sure you have `gcc` installed)
 
 ```
 git clone https://github.com/kroften4/cpong
