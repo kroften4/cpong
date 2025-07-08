@@ -21,12 +21,15 @@ build/lib/%.o: src/lib/%.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
 bin/server: $(LIB_OBJ)
+	@mkdir -p $(@D)
 	$(CC) $(CFLAGS) $^ src/server.c -o $@ $(LFLAGS)
 
 bin/client: $(LIB_OBJ)
+	@mkdir -p $(@D)
 	$(CC) $(CFLAGS) $^ src/client.c -o $@ $(LFLAGS)
 
 bin/test: $(LIB_OBJ)
+	@mkdir -p $(@D)
 	$(CC) $(CFLAGS) $^ test/binarr.c -o $@ $(LFLAGS)
 
 clean:
