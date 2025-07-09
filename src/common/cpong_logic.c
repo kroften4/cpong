@@ -1,20 +1,13 @@
 #include "cpong_logic.h"
 #include "log.h"
 #include "vector.h"
+#include "engine.h"
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
 #include <stdbool.h>
 #define PI 3.1415
-
-struct game_obj linear_move(struct game_obj obj, int delta_time) {
-    struct vector corrected_vel = vector_multiply(obj.velocity, delta_time);
-    // LOGF("(%.2f %.2f)->(%.2f %.2f)", obj.velocity.x, obj.velocity.y,
-    //      corrected_vel.x, corrected_vel.y);
-    obj.pos = vector_add(obj.pos, corrected_vel);
-    return obj;
-}
 
 void print_state(struct pong_state state) {
     printf("\tp1: id %d, pos (%.2f %.2f), vel (%.2f %.2f), size (%.2f %.2f)\n"
@@ -29,16 +22,6 @@ void print_state(struct pong_state state) {
            state.ball.pos.x, state.ball.pos.y, 
            state.ball.velocity.x, state.ball.velocity.y,
            state.ball.size.x, state.ball.size.y);
-}
-
-struct AABB_boundaries AABB_get_boundaries(struct game_obj obj) {
-    struct AABB_boundaries boundaries = {
-        .up = obj.pos.y + obj.size.y / 2,
-        .down = obj.pos.y - obj.size.y / 2,
-        .left = obj.pos.x - obj.size.x / 2,
-        .right = obj.pos.x + obj.size.x / 2
-    };
-    return boundaries;
 }
 
 void init_paddle(struct game_obj *paddle) {
@@ -76,18 +59,6 @@ void init_game(struct pong_state *state) {
     state->ball.pos.y = state->box_size.y / 2;
 }
 
-struct vector linear_interpolate(struct vector pos, struct vector pos_next,
-                                 float delta_time_normalized) {
-    struct vector pos_interpolated = {0, 0};
-    pos_interpolated.x = delta_time_normalized * (pos_next.x - pos.x) + pos.x;
-    pos_interpolated.y = delta_time_normalized * (pos_next.y - pos.y) + pos.y;
-    return pos_interpolated;
-}
-
-bool is_valid_toi(float toi) {
-    return 0.0f < toi && toi <= 1.0f;
-}
-
 /*
  * When collision happens, right side of paddle touches left side of ball, so
  * `ball.pos.x` at TOI = `paddle.pos.x + paddle.size.x / 2 + ball.size.x / 2`
@@ -122,15 +93,6 @@ float ball_y_collide(int y, struct game_obj ball, struct game_obj ball_next,
     coll_info->normal.x = 0;
     coll_info->normal.y = -dir;
     return true;
-}
-
-bool get_first_collision(struct coll_info *collisions, size_t amount, struct coll_info *result) {
-    result->toi = 99;
-    for (size_t i = 0; i < amount; i++) {
-        if (is_valid_toi(collisions[i].toi) && collisions[i].toi < result->toi)
-            *result = collisions[i];
-    }
-    return result->toi != 99;
 }
 
 bool ball_paddle_collide(struct game_obj paddle, struct game_obj ball,
@@ -190,15 +152,6 @@ int ball_score_collide(struct wall wall, struct game_obj ball,
     return scored_index;
 }
 
-int min_idx(float arr[], size_t size) {
-    int res = 0;
-    for (size_t i = 1; i <= size / sizeof(float); i++) {
-        if (arr[res] < arr[i])
-            res = i;
-    }
-    return res;
-}
-
 void ball_bounce_on_collision(struct game_obj *ball, struct vector normal) {
     ball->velocity = reflect_orthogonal(ball->velocity, normal);
 }
@@ -226,19 +179,5 @@ void ball_advance(struct wall wall, struct game_obj paddle1,
         ball_bounce_on_collision(&ball, coll_info.normal);
     }
     *ball_upd = ball;
-}
-
-bool AABB_is_overlapping(struct game_obj first, struct game_obj second) {
-    struct AABB_boundaries bounds1 = AABB_get_boundaries(first);
-    struct AABB_boundaries bounds2 = AABB_get_boundaries(second);
-    if (bounds1.down > bounds2.up)
-        return true;
-    if (bounds1.up < bounds2.down)
-        return true;
-    if (bounds1.left > bounds2.right)
-        return true;
-    if (bounds1.right < bounds2.left)
-        return true;
-    return false;
 }
 
