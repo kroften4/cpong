@@ -1,5 +1,4 @@
 #include "bin_array.h"
-#include "cpong_packets.h"
 #include "server.h"
 #include "ts_queue.h"
 #include "matchmaking.h"
@@ -106,22 +105,5 @@ void handle_disband(struct room *room) {
     room->is_disbanded = true;
     if (mm_server.args.on_disband_fn != NULL)
         mm_server.args.on_disband_fn(room);
-}
-
-int mm_room_broadcast(server_t *server, struct room *room,
-                      struct packet packet) {
-    struct binarr barr = {0};
-    binarr_new(&barr, MAX_PACKET_SIZE);
-    packet_serialize(&barr, packet);
-    for (int i = 0; i < ROOM_SIZE; i++) {
-        // TODO: handle disconnection
-        client_t *receiver = room->clients[i];
-        if (server_send(server, *receiver, barr) == -1) {
-            handle_disband(room);
-            return -1;
-        };
-    }
-    binarr_destroy(barr);
-    return 0;
 }
 

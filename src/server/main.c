@@ -24,6 +24,9 @@ void on_disband(struct room *room) {
     LOGF("disbanded room %d", room->id);
 }
 
+int room_broadcast(server_t *server, struct room *room,
+                      struct packet packet);
+
 bool send_score(server_t *server, struct room *room, int scored_player_index);
 
 int main(int argc, char **argv) {
@@ -38,6 +41,23 @@ int main(int argc, char **argv) {
     LOGF("Listening on %s", port);
 
     matchmaking_server_worker(&server, NULL, start_pong_game, on_disband);
+}
+
+int room_broadcast(server_t *server, struct room *room,
+                      struct packet packet) {
+    struct binarr barr = {0};
+    binarr_new(&barr, MAX_PACKET_SIZE);
+    packet_serialize(&barr, packet);
+    for (int i = 0; i < ROOM_SIZE; i++) {
+        // TODO: handle disconnection
+        client_t *receiver = room->clients[i];
+        if (server_send(server, *receiver, barr) == -1) {
+            handle_disband(room);
+            return -1;
+        };
+    }
+    binarr_destroy(barr);
+    return 0;
 }
 
 bool send_state(int delta_time, void *room_p) {
@@ -76,7 +96,7 @@ bool send_state(int delta_time, void *room_p) {
         .data.state = state
     };
 
-    if (mm_room_broadcast(server, room, packet) == -1) {
+    if (room_broadcast(server, room, packet) == -1) {
         LOG("Someone disconnected");
         return false;
     };
