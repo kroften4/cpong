@@ -42,9 +42,10 @@ bool ball_wall_collide(struct wall wall, struct game_obj ball,
 void ball_advance(struct wall wall, struct game_obj paddle1,
                   struct game_obj paddle1_next, struct game_obj paddle2,
                   struct game_obj paddle2_next, struct game_obj ball,
-                  struct game_obj *ball_upd, int delta_time);
+                  struct game_obj *ball_upd, int delta_time, int *scored_index);
 
-int ball_score_collide(struct wall wall, struct game_obj ball, int delta_time);
+int ball_score_collide(struct wall wall, struct game_obj ball,
+                       int delta_time, struct coll_info *coll_info);
 
 #endif
 

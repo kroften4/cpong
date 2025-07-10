@@ -15,6 +15,7 @@
 
 struct binarr *packet_serialize(struct binarr *barr, struct packet packet) {
     binarr_append_i8(barr, packet.type);
+    binarr_append_i8(barr, packet.sync);
     barr->index += sizeof(packet.size);
     barr->size = barr->index;
     switch (packet.type) {
@@ -75,7 +76,7 @@ struct binarr *packet_serialize(struct binarr *barr, struct packet packet) {
         return NULL;
     }
     packet.size = barr->index - PACKET_HEADER_SIZE;
-    barr->index = sizeof(packet.type);
+    barr->index = sizeof(packet.type) + sizeof(packet.sync);
     binarr_write_i32_n(barr, packet.size);
     barr->index = barr->size;
     return barr;
@@ -84,6 +85,7 @@ struct binarr *packet_serialize(struct binarr *barr, struct packet packet) {
 struct packet *packet_deserialize(struct packet *packet, struct binarr *barr) {
     barr->index = 0;
     packet->type = binarr_read_i8(barr);
+    packet->sync = binarr_read_i8(barr);
     packet->size = binarr_read_i32_n(barr);
     switch (packet->type) {
     case PACKET_PING:
@@ -225,6 +227,7 @@ int recv_packet(int fd, struct packet *result) {
         perror("header recv");
         return h_size;
     }
+    binarr_read_i8(&barr);
     binarr_read_i8(&barr);
     int32_t packet_size = binarr_read_i32_n(&barr);
     ssize_t d_size = recvall(fd, barr.buf + barr.size, packet_size, 0);

@@ -7,26 +7,31 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include "cpong_logic.h"
+#include "engine.h"
+#include "render.h"
+#include "vector.h"
 #include "cpong_packets.h"
 #include "server.h"
 #include "log.h"
 #include "run_every.h"
-#include "render.h"
-#include "vector.h"
 
 #define FPS_CAP 1000
 #define MIN_FRAME_DURATION_MS 1000 / FPS_CAP
 
-#define NET_TPS_CAP 10
+#define NET_TPS_CAP 60
 #define MIN_NET_TICK_DURATION_MS 1000 / NET_TPS_CAP
 
-struct pong_state local_state;
-struct pong_state server_state;
-pthread_mutex_t state_mtx = PTHREAD_MUTEX_INITIALIZER;
-server_t server;
+static struct pong_state local_state;
+static struct pong_state server_state;
+static pthread_mutex_t state_mtx = PTHREAD_MUTEX_INITIALIZER;
 
-static int32_t input_accumulator = 0;
-pthread_mutex_t input_acc_mtx = PTHREAD_MUTEX_INITIALIZER;
+static int8_t sync;
+static pthread_mutex_t sync_mtx = PTHREAD_MUTEX_INITIALIZER;
+
+static server_t server;
+
+static struct input input = {.input_acc_ms = 0};
+pthread_mutex_t input_mtx = PTHREAD_MUTEX_INITIALIZER;
 
 int server_state_receive(server_t server);
 
@@ -69,11 +74,13 @@ int main(int argc, char **argv) {
     if (init_packet.type != PACKET_INIT) {
         ERRORF("did not receive init packet: got type %d", init_packet.type);
         return 1;
-    } else {
-        struct pong_state state = init_packet.data.state;
-        LOGF("received init packet: player id %d", 
-             state.player_ids[state.own_id_index]);
     }
+
+    sync = init_packet.sync;
+    struct pong_state state = init_packet.data.state;
+    LOGF("received init packet: player id %d", 
+         state.player_ids[state.own_id_index]);
+
     local_state = init_packet.data.state;
     local_state.score[0] = 0;
     local_state.score[1] = 0;
@@ -115,14 +122,17 @@ void update_local_state(struct pong_state *local, int delta_time, int input_dire
     if (0 == local->own_id_index) {
         player1_upd.velocity.y = input_direction * 0.5;
         player1_upd = linear_move(player1_upd, delta_time);
+        player2_upd = linear_move(player2_upd, delta_time);
     } else {
         player2_upd.velocity.y = input_direction * 0.5;
         player2_upd = linear_move(player2_upd, delta_time);
+        player1_upd = linear_move(player1_upd, delta_time);
     }
 
     struct wall wall = {.up = local->box_size.y, .down = 0, .left = 0, .right = local->box_size.x};
     struct game_obj ball_upd = {0};
-    ball_advance(wall, local->player1, player1_upd, local->player2, player2_upd, local->ball, &ball_upd, delta_time);
+    int scored_index;
+    ball_advance(wall, local->player1, player1_upd, local->player2, player2_upd, local->ball, &ball_upd, delta_time, &scored_index);
 
     local->ball = ball_upd;
     local->player1 = player1_upd;
@@ -135,8 +145,10 @@ void server_snap(struct pong_state *local, struct pong_state server) {
 
     if (0 != local->own_id_index) {
         local->player1.pos.y = server.player1.pos.y;
+        local->player1.velocity.y = server.player1.velocity.y;
     } else {
         local->player2.pos.y = server.player2.pos.y;
+        local->player2.velocity.y = server.player2.velocity.y;
     }
 }
 
@@ -147,6 +159,7 @@ int server_state_receive(server_t server) {
         LOG("Couldn't recv from the server");
         return -1;
     }
+
     switch (packet.type) {
     case PACKET_STATE:
         pthread_mutex_lock(&state_mtx);
@@ -165,9 +178,14 @@ int server_state_receive(server_t server) {
         local_state.own_id_index = own_index_save;
         pthread_mutex_unlock(&state_mtx);
 
-        pthread_mutex_lock(&input_acc_mtx);
-        input_accumulator = 0;
-        pthread_mutex_unlock(&input_acc_mtx);
+        pthread_mutex_lock(&sync_mtx);
+        LOGF("sync change: %d -> %d", sync, packet.sync);
+        sync = packet.sync;
+        pthread_mutex_unlock(&sync_mtx);
+
+        pthread_mutex_lock(&input_mtx);
+        input.input_acc_ms = 0;
+        pthread_mutex_unlock(&input_mtx);
         break;
     default:
         WARNF("Unexpected packet: %d", packet.type);
@@ -191,17 +209,21 @@ bool network_update(int delta_time, void *dummy) {
               delta_time - MIN_NET_TICK_DURATION_MS);
     }
 
-    pthread_mutex_lock(&input_acc_mtx);
+    pthread_mutex_lock(&input_mtx);
+    pthread_mutex_lock(&sync_mtx);
     struct packet packet = {
         .type = PACKET_INPUT,
+        .sync = sync,
         .data.input = {
-            .input_acc_ms = input_accumulator
+            .input_acc_ms = input.input_acc_ms
         }
     };
-    input_accumulator = 0;
-    pthread_mutex_unlock(&input_acc_mtx);
+    pthread_mutex_unlock(&sync_mtx);
+    input.input_acc_ms = 0;
+    pthread_mutex_unlock(&input_mtx);
     int b_sent = client_send(server, packet);
-    LOGF("sent %d, input %d", b_sent, packet.data.input.input_acc_ms);
+    if (b_sent <= 0)
+        LOGF("sent %d, input %d", b_sent, packet.data.input.input_acc_ms);
     return true;
 }
 
@@ -244,9 +266,9 @@ bool update(int delta_time, void *update_args_p) {
 
     int input_direction = (down - up);
 
-    pthread_mutex_lock(&input_acc_mtx);
-    input_accumulator += input_direction * delta_time;
-    pthread_mutex_unlock(&input_acc_mtx);
+    pthread_mutex_lock(&input_mtx);
+    input.input_acc_ms += input_direction * delta_time;
+    pthread_mutex_unlock(&input_mtx);
 
     pthread_mutex_lock(&state_mtx);
     update_local_state(&local_state, delta_time, input_direction);

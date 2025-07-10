@@ -7,7 +7,7 @@
 #include "cpong_logic.h"
 
 #define MAX_PACKET_SIZE 200
-#define PACKET_HEADER_SIZE 5
+#define PACKET_HEADER_SIZE 6
 
 /*
  * CPONG protocol
@@ -25,6 +25,7 @@ enum cpong_packet {
 
 struct packet {
     uint8_t type;
+    uint8_t sync;
     uint32_t size;
     union packet_data {
         struct ping {
@@ -34,7 +35,6 @@ struct packet {
             int32_t input_acc_ms;
         } input;
         struct pong_state state;
-        uint8_t scored_player_index;
     } data;
 };
 

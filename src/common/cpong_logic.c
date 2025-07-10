@@ -27,19 +27,21 @@ void print_state(struct pong_state state) {
 void init_paddle(struct game_obj *paddle) {
     paddle->size.x = 10;
     paddle->size.y = 50;
-    paddle->velocity.y = 0.5;
+    paddle->speed = 0.5;
+    paddle->velocity.x = 0;
+    paddle->velocity.y = 0;
 }
 
 void init_ball(struct game_obj *ball) {
     ball->size.x = 10;
     ball->size.y = 10;
-    float speed = 0.25;
+    ball->speed = 0.25;
     srand(time(NULL));
     struct vector angle = vector_random_angle(PI/6, PI/3, 0.1);
     int dir_x = rand() % 2 * 2 - 1;
     int dir_y = rand() % 2 * 2 - 1;
-    ball->velocity.x = angle.x * dir_x * speed;
-    ball->velocity.y = angle.y * dir_y * speed;
+    ball->velocity.x = angle.x * dir_x * ball->speed;
+    ball->velocity.y = angle.y * dir_y * ball->speed;
 }
 
 void init_game(struct pong_state *state) {
@@ -141,13 +143,12 @@ bool ball_wall_collide(struct wall wall, struct game_obj ball,
 }
 
 int ball_score_collide(struct wall wall, struct game_obj ball,
-                       int delta_time) {
+                       int delta_time, struct coll_info *coll_info) {
     struct game_obj ball_next = linear_move(ball, delta_time);
-    struct coll_info coll_info = {0};
     int scored_index = -1;
-    if (ball_x_collide(wall.left, ball, ball_next, &coll_info))
+    if (ball_x_collide(wall.left, ball, ball_next, coll_info))
         scored_index = 0;
-    if (ball_x_collide(wall.right, ball, ball_next, &coll_info))
+    if (ball_x_collide(wall.right, ball, ball_next, coll_info))
         scored_index = 1;
     return scored_index;
 }
@@ -159,21 +160,26 @@ void ball_bounce_on_collision(struct game_obj *ball, struct vector normal) {
 void ball_advance(struct wall wall, struct game_obj paddle1,
                   struct game_obj paddle1_next, struct game_obj paddle2,
                   struct game_obj paddle2_next, struct game_obj ball,
-                  struct game_obj *ball_upd, int delta_time) {
+                  struct game_obj *ball_upd, int delta_time, int *scored_index) {
     float passed_time = 0;
     while (passed_time < delta_time) {
         struct game_obj ball_next = linear_move(ball, delta_time - passed_time);
         struct coll_info coll_info = {0};
-        struct coll_info collisions[3] = {0};
+        struct coll_info collisions[4] = {0};
         ball_paddle_collide(paddle1, ball, paddle1_next, ball_next,
                             &collisions[0]);
         ball_paddle_collide(paddle2, ball, paddle2_next, ball_next,
                             &collisions[1]);
         ball_wall_collide(wall, ball, ball_next, &collisions[2]);
-        if (!get_first_collision(collisions, 3, &coll_info)) {
+        *scored_index = ball_score_collide(wall, ball, delta_time - passed_time, &collisions[3]);
+        if (!get_first_collision(collisions, 4, &coll_info)) {
             ball = ball_next;
             break;
         }
+        if (coll_info.toi == collisions[3].toi) {
+            return;
+        }
+        *scored_index = -1;
         ball.pos = coll_info.pos;
         passed_time += coll_info.toi;
         ball_bounce_on_collision(&ball, coll_info.normal);
