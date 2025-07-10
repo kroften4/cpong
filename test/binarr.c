@@ -1,4 +1,4 @@
-#include "bin_array.h"
+#include "krft/bin_array.h"
 #include <assert.h>
 #include <stdint.h>
 #include <stdio.h>

@@ -1,7 +1,7 @@
 #ifndef __MATCHMAKING_H__
 #define __MATCHMAKING_H__
 
-#include "server.h"
+#include "krft/server.h"
 #include <stdbool.h>
 
 #define ROOM_SIZE 2

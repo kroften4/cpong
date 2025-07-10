@@ -1,5 +1,5 @@
 #include "vector.h"
-#include "log.h"
+#include "krft/log.h"
 #include <math.h>
 #include <stdlib.h>
 

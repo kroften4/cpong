@@ -1,7 +1,7 @@
 #ifndef __SERVER_H__
 #define __SERVER_H__
 
-#include "bin_array.h"
+#include "krft/bin_array.h"
 #include <sys/types.h>
 
 /*

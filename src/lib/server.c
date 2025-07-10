@@ -7,9 +7,9 @@
 #include <pthread.h>
 #include <stdlib.h>
 
-#include "ts_queue.h"
-#include "server.h"
-#include "log.h"
+#include "krft/ts_queue.h"
+#include "krft/server.h"
+#include "krft/log.h"
 
 server_t *server_set_fd(server_t *server, char *port) {
     struct addrinfo hints;
@@ -77,8 +77,7 @@ void server_handle_disconnection(server_t *server, client_t client) {
     }
     if (client_node == NULL) {
         ERRORF("Cannot find client id %d", client.id);
-    }
-    else {
+    } else {
         close(client.fd);
         free(client_node->data);
         __ts_queue_remove_nolock(server->clients, client_node->prev, client_node->next);

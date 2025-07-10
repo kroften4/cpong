@@ -1,6 +1,6 @@
 #include <pthread.h>
 #include <stdlib.h>
-#include "ts_queue.h"
+#include "krft/ts_queue.h"
 
 struct ts_queue_node *ts_queue_node_new(void) {
     struct ts_queue_node *node = malloc(sizeof(struct ts_queue_node));

@@ -7,11 +7,11 @@
 #include <stdio.h>
 #include <errno.h>
 #include <sys/types.h>
-#include "ts_queue.h"
-#include "bin_array.h"
-#include "server.h"
+#include "krft/ts_queue.h"
+#include "krft/bin_array.h"
+#include "krft/server.h"
 #include "cpong_packets.h"
-#include "log.h"
+#include "krft/log.h"
 
 struct binarr *packet_serialize(struct binarr *barr, struct packet packet) {
     binarr_append_i8(barr, packet.type);

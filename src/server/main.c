@@ -1,10 +1,11 @@
-#include "server.h"
+#include "krft/server.h"
 #include "cpong_logic.h"
-#include "matchmaking.h"
+#include "krft/matchmaking.h"
 #include "cpong_packets.h"
-#include "ts_queue.h"
-#include "log.h"
-#include "run_every.h"
+#include "krft/ts_queue.h"
+#include "krft/log.h"
+#include "krft/run_every.h"
+#include "utility.h"
 #include <pthread.h>
 #include <poll.h>
 #include <stdint.h>
@@ -20,13 +21,15 @@ static struct input input1 = {0};
 static struct input input2 = {0};
 pthread_mutex_t input_mtx = PTHREAD_MUTEX_INITIALIZER;
 
-void start_pong_game(struct room *room);
-
 void on_disband(struct room *room) {
     LOGF("disbanded room %d", room->id);
 }
 
-int room_broadcast(server_t *server, struct room *room, struct packet packet);
+void start_pong_game(struct room *room);
+
+bool send_state(int delta_time, void *room_p);
+
+void *input_receive(void *room_p);
 
 int main(int argc, char **argv) {
     if (argc != 2) {
@@ -40,30 +43,6 @@ int main(int argc, char **argv) {
     LOGF("Listening on %s", port);
 
     matchmaking_server_worker(&server, NULL, start_pong_game, on_disband);
-}
-
-int room_broadcast(server_t *server, struct room *room, struct packet packet) {
-    struct binarr barr = {0};
-    binarr_new(&barr, MAX_PACKET_SIZE);
-    packet_serialize(&barr, packet);
-    for (int i = 0; i < ROOM_SIZE; i++) {
-        // TODO: handle disconnection
-        client_t *receiver = room->clients[i];
-        if (server_send(server, *receiver, barr) == -1) {
-            handle_disband(room);
-            return -1;
-        };
-    }
-    binarr_destroy(barr);
-    return 0;
-}
-
-short get_input_acc_direction(int input_acc) {
-    if (input_acc > 0)
-        return 1;
-    if (input_acc == 0)
-        return 0;
-    return -1;
 }
 
 bool send_state(int delta_time, void *room_p) {

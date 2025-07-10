@@ -1,8 +1,8 @@
-#include "bin_array.h"
-#include "server.h"
-#include "ts_queue.h"
-#include "matchmaking.h"
-#include "log.h"
+#include "krft/bin_array.h"
+#include "krft/server.h"
+#include "krft/ts_queue.h"
+#include "krft/matchmaking.h"
+#include "krft/log.h"
 #include <pthread.h>
 
 struct mm_worker_args {

@@ -2,8 +2,8 @@
 #define __CPONG_PACKETS_H__
 
 #include <inttypes.h>
-#include "bin_array.h"
-#include "server.h"
+#include "krft/bin_array.h"
+#include "krft/server.h"
 #include "cpong_logic.h"
 
 #define MAX_PACKET_SIZE 200

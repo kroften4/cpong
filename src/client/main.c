@@ -11,9 +11,9 @@
 #include "render.h"
 #include "vector.h"
 #include "cpong_packets.h"
-#include "server.h"
-#include "log.h"
-#include "run_every.h"
+#include "krft/server.h"
+#include "krft/log.h"
+#include "krft/run_every.h"
 
 #define FPS_CAP 1000
 #define MIN_FRAME_DURATION_MS 1000 / FPS_CAP

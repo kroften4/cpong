@@ -1,5 +1,5 @@
 #include "cpong_logic.h"
-#include "log.h"
+#include "krft/log.h"
 #include "vector.h"
 #include "engine.h"
 #include <stddef.h>
