@@ -14,22 +14,33 @@
 #define TICK_CAP 40
 #define MIN_TICK_DURATION_MS 1000 / TICK_CAP
 
+struct server_state {
+    struct pong_state state;
+    int8_t sync;
+    pthread_mutex_t sync_mtx;
+    struct input input1;
+    struct input input2;
+    pthread_mutex_t input_mtx;
+};
+
 static struct pong_state state;
+
 static int8_t sync = 0;
 pthread_mutex_t sync_mtx = PTHREAD_MUTEX_INITIALIZER;
+
 static struct input input1 = {0};
 static struct input input2 = {0};
 pthread_mutex_t input_mtx = PTHREAD_MUTEX_INITIALIZER;
 
-void on_disband(struct room *room) {
+static void on_disband(struct room *room) {
     LOGF("disbanded room %d", room->id);
 }
 
-void start_pong_game(struct room *room);
+static void start_pong_game(struct room *room);
 
-bool send_state(int delta_time, void *room_p);
+static bool send_state(int delta_time, void *room_p);
 
-void *input_receive(void *room_p);
+static void *input_receive(void *room_p);
 
 int main(int argc, char **argv) {
     if (argc != 2) {
@@ -43,10 +54,12 @@ int main(int argc, char **argv) {
     LOGF("Listening on %s", port);
 
     matchmaking_server_worker(&server, NULL, start_pong_game, on_disband);
+
+    return 0;
 }
 
-bool send_state(int delta_time, void *room_p) {
-    LOG("send_state start");
+static bool send_state(int delta_time, void *room_p) {
+    // LOG("send_state start");
     if (delta_time > 3 + MIN_TICK_DURATION_MS) {
         WARNF("Server running slow: %d ms behind", 
               delta_time - MIN_TICK_DURATION_MS);
@@ -101,15 +114,48 @@ bool send_state(int delta_time, void *room_p) {
         return false;
     };
 
-    LOG("pong: Broadcasting state");
-    print_state(packet.data.state);
-
-    LOGF("room disband: %d", room->is_disbanded);
+    // LOG("pong: Broadcasting state");
+    // print_state(packet.data.state);
 
     return !room->is_disbanded;
 }
 
-void *input_receive(void *room_p) {
+static void on_input_ready(client_t client) {
+    struct packet packet;
+    int res = recv_packet(client.fd, &packet);
+    if (res == 0) {
+        LOG("Someone disconnected");
+        return;
+    } else if (res == -1) {
+        ERROR("recv_packet returned -1");
+    }
+
+    pthread_mutex_lock(&sync_mtx);
+    if (packet.sync != sync) {
+        LOGF("invalid sync: got %d, current %d", packet.sync, sync);
+        pthread_mutex_unlock(&sync_mtx);
+        return;
+    }
+    pthread_mutex_unlock(&sync_mtx);
+
+    if (packet.type != PACKET_INPUT) {
+        WARNF("Expected PACKET_INPUT, received %d", packet.type);
+        return;
+    }
+
+    pthread_mutex_lock(&input_mtx);
+    if (state.player_ids[0] == client.id) {
+        input1.input_acc_ms += packet.data.input.input_acc_ms;
+        // LOGF("p1: %d", input1.input_acc_ms);
+    } else if (state.player_ids[1] == client.id) {
+        input2.input_acc_ms += packet.data.input.input_acc_ms;
+        // LOGF("p2: %d", input2.input_acc_ms);
+    }
+    pthread_mutex_unlock(&input_mtx);
+
+}
+
+static void *input_receive(void *room_p) {
     struct room *room = room_p;
     struct pollfd fds[ROOM_SIZE] = {0};
     for (int i = 0; i < ROOM_SIZE; i++) {
@@ -119,48 +165,15 @@ void *input_receive(void *room_p) {
     while (!room->is_disbanded) {
         poll(fds, ROOM_SIZE, -1);
         for (int i = 0; i < ROOM_SIZE; i++) {
-            if (!(fds[i].revents & POLLIN)) {
+            if (!(fds[i].revents & POLLIN))
                 continue;
-            }
-
-            struct packet packet;
-            int res = recv_packet(fds[i].fd, &packet);
-            if (res == 0) {
-                LOG("Someone disconnected");
-                return NULL;
-            } else if (res == -1) {
-                ERROR("recv_packet returned -1");
-            }
-
-            pthread_mutex_lock(&sync_mtx);
-            if (packet.sync != sync) {
-                LOGF("invalid sync: got %d, current %d", packet.sync, sync);
-                pthread_mutex_unlock(&sync_mtx);
-                continue;
-            }
-            pthread_mutex_unlock(&sync_mtx);
-
-            if (packet.type != PACKET_INPUT) {
-                WARNF("Expected PACKET_INPUT, received %d", packet.type);
-                continue;
-            }
-
-            int id = room->clients[i]->id;
-            pthread_mutex_lock(&input_mtx);
-            if (state.player_ids[0] == id) {
-                input1.input_acc_ms += packet.data.input.input_acc_ms;
-                // LOGF("p1: %d", input1.input_acc_ms);
-            } else if (state.player_ids[1] == id) {
-                input2.input_acc_ms += packet.data.input.input_acc_ms;
-                // LOGF("p2: %d", input2.input_acc_ms);
-            }
-            pthread_mutex_unlock(&input_mtx);
+            on_input_ready(*room->clients[i]);
         }
     }
     return NULL;
 }
 
-void start_pong_game(struct room *room) {
+static void start_pong_game(struct room *room) {
     LOG("Starting pong");
     server_t *server = room->clients[0]->server;
 

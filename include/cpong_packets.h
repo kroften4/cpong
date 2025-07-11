@@ -11,6 +11,7 @@
 
 /*
  * CPONG protocol
+ * sync - updated on scoring
  * Packet types:
  * PACKET_PING - unused
  * PACKET_INIT - Sent when a match is found and on scoring; contains initial information about game objects, field size, etc.
@@ -25,7 +26,7 @@ enum cpong_packet {
 
 struct packet {
     uint8_t type;
-    uint8_t sync;
+    int8_t sync;
     uint32_t size;
     union packet_data {
         struct ping {

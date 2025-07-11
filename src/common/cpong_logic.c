@@ -155,6 +155,7 @@ int ball_score_collide(struct wall wall, struct game_obj ball,
 
 void ball_bounce_on_collision(struct game_obj *ball, struct vector normal) {
     ball->velocity = reflect_orthogonal(ball->velocity, normal);
+    ball->velocity = vector_multiply(ball->velocity, 1.02f);
 }
 
 void ball_advance(struct wall wall, struct game_obj paddle1,

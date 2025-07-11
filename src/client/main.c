@@ -164,11 +164,11 @@ int server_state_receive(server_t server) {
     case PACKET_STATE:
         pthread_mutex_lock(&state_mtx);
         server_state = packet.data.state;
-        LOG("received server state");
-        print_state(server_state);
-        LOG("local state");
+        // LOG("received server state");
+        // print_state(server_state);
+        // LOG("local state");
         server_snap(&local_state, server_state);
-        print_state(local_state);
+        // print_state(local_state);
         pthread_mutex_unlock(&state_mtx);
         break;
     case PACKET_INIT:
