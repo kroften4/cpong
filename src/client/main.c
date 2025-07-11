@@ -274,7 +274,9 @@ bool update(int delta_time, void *update_args_p) {
     update_local_state(&local_state, delta_time, input_direction);
 
     clear_screen(renderer);
+#ifdef DEBUG
     draw_server_state(server_state, renderer);
+#endif
 
     SDL_Color state_color = {0, 0, 0, 255};
     draw_state(local_state, renderer, state_color);

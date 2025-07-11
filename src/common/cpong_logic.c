@@ -2,6 +2,7 @@
 #include "krft/log.h"
 #include "vector.h"
 #include "engine.h"
+#include <math.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -37,7 +38,7 @@ void init_ball(struct game_obj *ball) {
     ball->size.y = 10;
     ball->speed = 0.25;
     srand(time(NULL));
-    struct vector angle = vector_random_angle(PI/6, PI/3, 0.1);
+    struct vector angle = vector_random_angle(PI / 6, PI / 3, 0.1);
     int dir_x = rand() % 2 * 2 - 1;
     int dir_y = rand() % 2 * 2 - 1;
     ball->velocity.x = angle.x * dir_x * ball->speed;
@@ -126,7 +127,7 @@ bool ball_paddle_collide(struct game_obj paddle, struct game_obj ball,
         coll_info->toi = -1;
         return false;
     }
-    LOG("collision with paddle");
+    // LOG("collision with paddle");
     return true;
 }
 
@@ -138,7 +139,7 @@ bool ball_wall_collide(struct wall wall, struct game_obj ball,
     ball_y_collide(wall.down, ball, ball_next, &collisions[1]);
     if (!get_first_collision(collisions, 2, coll_info))
         return false;
-    LOG("collision with wall");
+    // LOG("collision with wall");
     return true;
 }
 
@@ -155,7 +156,14 @@ int ball_score_collide(struct wall wall, struct game_obj ball,
 
 void ball_bounce_on_collision(struct game_obj *ball, struct vector normal) {
     ball->velocity = reflect_orthogonal(ball->velocity, normal);
-    ball->velocity = vector_multiply(ball->velocity, 1.02f);
+    float x = ball->velocity.y;
+    float y = ball->velocity.x;
+    float hyp = sqrtf(x * x + y * y);
+    float speed_up = 0.01;
+    float cos = y / hyp;
+    float sin = x / hyp;
+    ball->velocity.x += speed_up * cos;
+    ball->velocity.y += speed_up * sin;
 }
 
 void ball_advance(struct wall wall, struct game_obj paddle1,

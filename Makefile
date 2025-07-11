@@ -4,7 +4,7 @@ CFLAGS += -Wall -Wextra -Wpedantic
 LFLAGS = -lSDL3 -lm
 
 ifdef DEBUG
-	CFLAGS += -ggdb -O0
+	CFLAGS += -ggdb -O0 -D DEBUG
 else
 	CFLAGS += -O1
 endif

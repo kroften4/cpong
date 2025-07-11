@@ -14,15 +14,13 @@ void draw_obj(struct game_obj obj, SDL_Renderer *renderer, SDL_Color color) {
     SDL_FRect rect = {obj.pos.x - obj.size.x / 2.0f,
         obj.pos.y - obj.size.y / 2.0f, obj.size.x, obj.size.y};
     SDL_RenderFillRect(renderer, &rect);
+#ifdef DEBUG
     draw_obj_debug(obj, renderer);
+#endif
 }
 
 void draw_score(struct pong_state state, SDL_Renderer *renderer, SDL_Color color) {
     SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
-    // SDL_FRect rect0 = {state.box_size.x / 2 - 50, state.box_size.y / 2 - 200, state.score[0] * 10, state.score[0] * 10};
-    // SDL_RenderFillRect(renderer, &rect0);
-    // SDL_FRect rect1 = {state.box_size.x / 2 + 50, state.box_size.y / 2 - 200, state.score[1] * 10, state.score[1] * 10};
-    // SDL_RenderFillRect(renderer, &rect1);
 
     int score_diff = state.score[1] - state.score[0];
     SDL_FRect rect = {state.box_size.x / 2, 0, score_diff * 10, state.box_size.y};
