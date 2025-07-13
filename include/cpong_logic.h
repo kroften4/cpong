@@ -23,10 +23,8 @@ void init_game(struct pong_state *state);
 
 void print_state(struct pong_state state);
 
-bool ball_paddle_collide(struct game_obj paddle, struct game_obj ball,
-                         struct game_obj paddle_next,
-                         struct game_obj ball_next,
-                         struct coll_info *coll_info);
+bool AABB_collide(struct game_obj obj1, struct game_obj obj2, int delta_time,
+                  struct coll_info *coll_info);
 
 struct wall {
     int up;
@@ -35,13 +33,11 @@ struct wall {
     int right;
 };
 
-bool ball_wall_collide(struct wall wall, struct game_obj ball,
-                       struct game_obj ball_next,
+bool ball_wall_collide(struct wall wall, struct game_obj ball, int delta_time,
                        struct coll_info *coll_info);
 
 void ball_advance(struct wall wall, struct game_obj paddle1,
-                  struct game_obj paddle1_next, struct game_obj paddle2,
-                  struct game_obj paddle2_next, struct game_obj ball,
+                  struct game_obj paddle2, struct game_obj ball,
                   struct game_obj *ball_upd, int delta_time, int *scored_index);
 
 int ball_score_collide(struct wall wall, struct game_obj ball,

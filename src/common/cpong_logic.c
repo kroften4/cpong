@@ -72,8 +72,9 @@ void init_game(struct pong_state *state) {
  * returns whether a collision has occured in the time frame between `ball` and `ball_next`
  * puts collision info into `coll_info`
  */
-bool ball_x_collide(int x, struct game_obj ball, struct game_obj ball_next,
+bool ball_x_collide(struct game_obj ball, int x, int delta_time,
                     struct coll_info *coll_info) {
+    struct game_obj ball_next = linear_move(ball, delta_time);
     int dir = ball.velocity.x > 0 ? 1 : -1;
     coll_info->toi = (x - dir * ball.size.x / 2 - ball.pos.x)
         / (ball_next.pos.x - ball.pos.x);
@@ -85,8 +86,9 @@ bool ball_x_collide(int x, struct game_obj ball, struct game_obj ball_next,
     return true;
 }
 
-float ball_y_collide(int y, struct game_obj ball, struct game_obj ball_next,
+bool ball_y_collide(struct game_obj ball, int y, int delta_time,
                      struct coll_info *coll_info) {
+    struct game_obj ball_next = linear_move(ball, delta_time);
     int dir = ball.velocity.y > 0 ? 1 : -1;
     coll_info->toi = (y - dir * ball.size.y / 2 - ball.pos.y)
         / (ball_next.pos.y - ball.pos.y);
@@ -98,58 +100,82 @@ float ball_y_collide(int y, struct game_obj ball, struct game_obj ball_next,
     return true;
 }
 
-bool ball_paddle_collide(struct game_obj paddle, struct game_obj ball,
-                         struct game_obj paddle_next,
-                         struct game_obj ball_next,
-                         struct coll_info *coll_info) {
-    struct AABB_boundaries paddle_bounds = AABB_get_boundaries(paddle);
-    struct coll_info collisions[4] = {0};
-    ball_x_collide(paddle_bounds.left, ball, ball_next, &collisions[0]);
-    ball_x_collide(paddle_bounds.right, ball, ball_next, &collisions[1]);
-    ball_y_collide(paddle_bounds.up, ball, ball_next, &collisions[2]);
-    ball_y_collide(paddle_bounds.down, ball, ball_next, &collisions[3]);
-    if (!get_first_collision(collisions, 4, coll_info))
-        return false;
+bool AABB_collide(struct game_obj obj1, struct game_obj obj2, int delta_time,
+                  struct coll_info *coll_info) {
+    struct coll_info x_coll = {0};
+    struct coll_info x_collisions[2] = {0};
 
-    struct game_obj ball_at_toi = ball;
-    ball_at_toi.pos = coll_info->pos;
-    struct AABB_boundaries ball_bounds_at_toi = AABB_get_boundaries(ball_at_toi);
-    struct game_obj paddle_at_toi = paddle;
-    paddle_at_toi.pos = linear_interpolate(paddle.pos, paddle_next.pos, coll_info->toi);
-    struct AABB_boundaries paddle_bounds_at_toi = AABB_get_boundaries(paddle_at_toi);
-    if (ball_bounds_at_toi.up < paddle_bounds_at_toi.down ||
-        ball_bounds_at_toi.down > paddle_bounds_at_toi.up) {
-        coll_info->toi = -1;
-        return false;
+    struct AABB_boundaries obj2_bounds = AABB_get_boundaries(obj2);
+    ball_x_collide(obj1, obj2_bounds.left, delta_time, &x_collisions[0]);
+    ball_x_collide(obj1, obj2_bounds.right, delta_time, &x_collisions[1]);
+    bool x_hit = get_first_collision(x_collisions, 2, &x_coll);
+
+    if (x_hit) {
+        struct game_obj obj2_at_toi = obj2;
+        struct game_obj obj2_next = linear_move(obj2, delta_time);
+        obj2_at_toi.pos = linear_interpolate(obj2.pos, obj2_next.pos, coll_info->toi);
+        struct AABB_boundaries obj2_bounds_at_toi = AABB_get_boundaries(obj2_at_toi);
+
+        struct game_obj obj1_at_toi = obj1;
+        obj1_at_toi.pos = x_coll.pos;
+        struct AABB_boundaries obj1_bounds_at_toi = AABB_get_boundaries(obj1_at_toi);
+
+        if (obj1_bounds_at_toi.up < obj2_bounds_at_toi.down ||
+            obj1_bounds_at_toi.down > obj2_bounds_at_toi.up) {
+            x_hit = false;
+        }
     }
-    if (ball_bounds_at_toi.right < paddle_bounds_at_toi.left ||
-        ball_bounds_at_toi.left > paddle_bounds_at_toi.right) {
-        coll_info->toi = -1;
-        return false;
+
+    struct coll_info y_coll = {0};
+    struct coll_info y_collisions[2] = {0};
+    ball_y_collide(obj1, obj2_bounds.up, delta_time, &y_collisions[0]);
+    ball_y_collide(obj1, obj2_bounds.down, delta_time, &y_collisions[1]);
+    bool y_hit = get_first_collision(y_collisions, 2, &y_coll);
+
+    if (y_hit) {
+        struct game_obj obj2_at_toi = obj2;
+        struct game_obj obj2_next = linear_move(obj2, delta_time);
+        obj2_at_toi.pos = linear_interpolate(obj2.pos, obj2_next.pos, coll_info->toi);
+        struct AABB_boundaries obj2_bounds_at_toi = AABB_get_boundaries(obj2_at_toi);
+
+        struct game_obj obj1_at_toi = obj1;
+        obj1_at_toi.pos = y_coll.pos;
+        struct AABB_boundaries obj1_bounds_at_toi = AABB_get_boundaries(obj1_at_toi);
+
+        if (obj1_bounds_at_toi.right < obj2_bounds_at_toi.left ||
+            obj1_bounds_at_toi.left > obj2_bounds_at_toi.right) {
+            y_hit = false;
+        }
     }
-    // LOG("collision with paddle");
-    return true;
+    if (x_hit && y_hit) {
+        struct coll_info collisions[2] = {x_coll, y_coll};
+        get_first_collision(collisions, 2, coll_info);
+    } else if (x_hit) {
+        *coll_info = x_coll;
+    } else if (y_hit) {
+        *coll_info = y_coll;
+    } else {
+        coll_info->toi = -1;
+    }
+    return x_hit || y_hit;
 }
 
-bool ball_wall_collide(struct wall wall, struct game_obj ball,
-                       struct game_obj ball_next,
+bool ball_wall_collide(struct wall wall, struct game_obj ball, int delta_time,
                        struct coll_info *coll_info) {
     struct coll_info collisions[2] = {0};
-    ball_y_collide(wall.up, ball, ball_next, &collisions[0]);
-    ball_y_collide(wall.down, ball, ball_next, &collisions[1]);
+    ball_y_collide(ball, wall.up, delta_time, &collisions[0]);
+    ball_y_collide(ball, wall.down, delta_time, &collisions[1]);
     if (!get_first_collision(collisions, 2, coll_info))
         return false;
-    // LOG("collision with wall");
     return true;
 }
 
 int ball_score_collide(struct wall wall, struct game_obj ball,
                        int delta_time, struct coll_info *coll_info) {
-    struct game_obj ball_next = linear_move(ball, delta_time);
     int scored_index = -1;
-    if (ball_x_collide(wall.left, ball, ball_next, coll_info))
+    if (ball_x_collide(ball, wall.left, delta_time, coll_info))
         scored_index = 0;
-    if (ball_x_collide(wall.right, ball, ball_next, coll_info))
+    else if (ball_x_collide(ball, wall.right, delta_time, coll_info))
         scored_index = 1;
     return scored_index;
 }
@@ -159,33 +185,37 @@ void ball_bounce_on_collision(struct game_obj *ball, struct vector normal) {
     float x = ball->velocity.y;
     float y = ball->velocity.x;
     float hyp = sqrtf(x * x + y * y);
+    if (hyp > 0.63)
+        return;
+
     float speed_up = 0.01;
     float cos = y / hyp;
     float sin = x / hyp;
     ball->velocity.x += speed_up * cos;
     ball->velocity.y += speed_up * sin;
+    LOGF("ball vel %.2f %.2f, speed %.2f", ball->velocity.x, ball->velocity.y, hyp + speed_up);
 }
 
 void ball_advance(struct wall wall, struct game_obj paddle1,
-                  struct game_obj paddle1_next, struct game_obj paddle2,
-                  struct game_obj paddle2_next, struct game_obj ball,
+                  struct game_obj paddle2, struct game_obj ball,
                   struct game_obj *ball_upd, int delta_time, int *scored_index) {
     float passed_time = 0;
     while (passed_time < delta_time) {
         struct game_obj ball_next = linear_move(ball, delta_time - passed_time);
         struct coll_info coll_info = {0};
         struct coll_info collisions[4] = {0};
-        ball_paddle_collide(paddle1, ball, paddle1_next, ball_next,
-                            &collisions[0]);
-        ball_paddle_collide(paddle2, ball, paddle2_next, ball_next,
-                            &collisions[1]);
-        ball_wall_collide(wall, ball, ball_next, &collisions[2]);
+        AABB_collide(ball, paddle1, delta_time, &collisions[0]);
+        AABB_collide(ball, paddle2, delta_time, &collisions[1]);
+        ball_wall_collide(wall, ball, delta_time, &collisions[2]);
         *scored_index = ball_score_collide(wall, ball, delta_time - passed_time, &collisions[3]);
         if (!get_first_collision(collisions, 4, &coll_info)) {
             ball = ball_next;
+            *scored_index = -1;
             break;
         }
+        LOGF("toi: %f", coll_info.toi);
         if (coll_info.toi == collisions[3].toi) {
+            LOGF("scored! paddle1 %f, paddle2 %f, score %f", collisions[0].toi, collisions[1].toi, collisions[3].toi);
             return;
         }
         *scored_index = -1;

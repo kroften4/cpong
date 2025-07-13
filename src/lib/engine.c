@@ -3,8 +3,6 @@
 
 struct game_obj linear_move(struct game_obj obj, int delta_time) {
     struct vector corrected_vel = vector_multiply(obj.velocity, delta_time);
-    // LOGF("(%.2f %.2f)->(%.2f %.2f)", obj.velocity.x, obj.velocity.y,
-    //      corrected_vel.x, corrected_vel.y);
     obj.pos = vector_add(obj.pos, corrected_vel);
     return obj;
 }

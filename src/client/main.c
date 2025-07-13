@@ -132,7 +132,7 @@ void update_local_state(struct pong_state *local, int delta_time, int input_dire
     struct wall wall = {.up = local->box_size.y, .down = 0, .left = 0, .right = local->box_size.x};
     struct game_obj ball_upd = {0};
     int scored_index;
-    ball_advance(wall, local->player1, player1_upd, local->player2, player2_upd, local->ball, &ball_upd, delta_time, &scored_index);
+    ball_advance(wall, local->player1, local->player2, local->ball, &ball_upd, delta_time, &scored_index);
 
     local->ball = ball_upd;
     local->player1 = player1_upd;

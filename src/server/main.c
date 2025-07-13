@@ -11,7 +11,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#define TICK_CAP 40
+#define TICK_CAP 60
 #define MIN_TICK_DURATION_MS 1000 / TICK_CAP
 
 struct server_state {
@@ -81,11 +81,13 @@ static bool send_state(int delta_time, void *room_p) {
     struct wall wall = {.up = state.box_size.y, .down = 0, .left = 0, .right = state.box_size.x};
     struct game_obj ball_upd = {0};
     int scored_index;
-    ball_advance(wall, state.player1, player1_upd, state.player2, player2_upd, state.ball, &ball_upd, delta_time, &scored_index);
+    ball_advance(wall, state.player1, state.player2, state.ball, &ball_upd, delta_time, &scored_index);
 
     state.ball = ball_upd;
     state.player1 = player1_upd;
     state.player2 = player2_upd;
+    LOG("sending state");
+    print_state(state);
 
     enum cpong_packet packet_type = PACKET_STATE;
     if (scored_index != -1) {
@@ -120,12 +122,12 @@ static bool send_state(int delta_time, void *room_p) {
     return !room->is_disbanded;
 }
 
-static void on_input_ready(client_t client) {
+static bool on_input_ready(client_t client) {
     struct packet packet;
     int res = recv_packet(client.fd, &packet);
     if (res == 0) {
         LOG("Someone disconnected");
-        return;
+        return false;
     } else if (res == -1) {
         ERROR("recv_packet returned -1");
     }
@@ -134,13 +136,13 @@ static void on_input_ready(client_t client) {
     if (packet.sync != sync) {
         LOGF("invalid sync: got %d, current %d", packet.sync, sync);
         pthread_mutex_unlock(&sync_mtx);
-        return;
+        return true;
     }
     pthread_mutex_unlock(&sync_mtx);
 
     if (packet.type != PACKET_INPUT) {
         WARNF("Expected PACKET_INPUT, received %d", packet.type);
-        return;
+        return true;
     }
 
     pthread_mutex_lock(&input_mtx);
@@ -153,6 +155,7 @@ static void on_input_ready(client_t client) {
     }
     pthread_mutex_unlock(&input_mtx);
 
+    return true;
 }
 
 static void *input_receive(void *room_p) {
@@ -167,7 +170,8 @@ static void *input_receive(void *room_p) {
         for (int i = 0; i < ROOM_SIZE; i++) {
             if (!(fds[i].revents & POLLIN))
                 continue;
-            on_input_ready(*room->clients[i]);
+            if (!on_input_ready(*room->clients[i]))
+                return NULL;
         }
     }
     return NULL;
